@@ -1,0 +1,60 @@
+const ko = {
+  nav: {
+    dashboard: '대시보드',
+    wardrobe: '옷장',
+    outfits: '코디',
+    avatars: '아바타',
+    recommendations: 'AI 추천',
+    settings: '설정',
+  },
+  auth: {
+    login: '로그인',
+    register: '회원가입',
+    email: '이메일',
+    password: '비밀번호',
+    name: '이름',
+    forgotPassword: '비밀번호를 잊으셨나요?',
+    noAccount: '계정이 없으신가요?',
+    hasAccount: '이미 계정이 있으신가요?',
+    loginWithGoogle: 'Google로 로그인',
+    loginWithKakao: '카카오로 로그인',
+  },
+  wardrobe: {
+    title: '내 옷장',
+    addItem: '아이템 추가',
+    uploadImage: '이미지 업로드',
+    importUrl: 'URL로 가져오기',
+    noItems: '아이템이 없습니다. 첫 아이템을 추가해보세요!',
+    category: {
+      all: '전체',
+      top: '상의',
+      bottom: '하의',
+      outer: '아우터',
+      shoes: '신발',
+      accessory: '액세서리',
+      etc: '기타',
+    },
+  },
+  outfit: {
+    title: '코디',
+    newOutfit: '새 코디',
+    generateImage: 'AI 이미지 생성',
+    noOutfits: '저장된 코디가 없습니다.',
+  },
+  recommendation: {
+    title: 'AI 코디 추천',
+    placeholder: '오늘 어떤 상황인가요? (예: 중요한 미팅이 있어요)',
+    send: '추천 받기',
+    useWeather: '현재 날씨 반영',
+  },
+  common: {
+    save: '저장',
+    cancel: '취소',
+    delete: '삭제',
+    edit: '수정',
+    loading: '로딩 중...',
+    error: '오류가 발생했습니다',
+  },
+};
+
+export default ko;

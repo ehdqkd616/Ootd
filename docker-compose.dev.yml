@@ -1,0 +1,25 @@
+version: '3.9'
+
+# 개발 환경용 - hot reload + 소스 마운트
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ootd-postgres-dev
+    environment:
+      POSTGRES_USER: ootd_user
+      POSTGRES_PASSWORD: ootd_password
+      POSTGRES_DB: ootd_db
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - '5432:5432'
+
+  redis:
+    image: redis:7-alpine
+    container_name: ootd-redis-dev
+    ports:
+      - '6379:6379'
+
+volumes:
+  postgres_dev_data:

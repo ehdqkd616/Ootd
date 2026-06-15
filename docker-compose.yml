@@ -1,0 +1,129 @@
+version: '3.9'
+
+services:
+  # ===== Infrastructure =====
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ootd-postgres
+    environment:
+      POSTGRES_USER: ootd_user
+      POSTGRES_PASSWORD: ootd_password
+      POSTGRES_DB: ootd_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ootd_user -d ootd_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ootd-redis
+    volumes:
+      - redis_data:/data
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===== API Gateway (Nginx) =====
+  nginx:
+    image: nginx:alpine
+    container_name: ootd-nginx
+    ports:
+      - '3000:80'
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - auth-service
+      - wardrobe-service
+      - outfit-service
+
+  # ===== Node.js Services =====
+  auth-service:
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile
+    container_name: ootd-auth
+    env_file: .env
+    environment:
+      - PORT=3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  wardrobe-service:
+    build:
+      context: ./services/wardrobe
+      dockerfile: Dockerfile
+    container_name: ootd-wardrobe
+    env_file: .env
+    environment:
+      - PORT=3002
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  outfit-service:
+    build:
+      context: ./services/outfit
+      dockerfile: Dockerfile
+    container_name: ootd-outfit
+    env_file: .env
+    environment:
+      - PORT=3003
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ===== Python AI Services =====
+  ai-orchestration:
+    build:
+      context: ./services/ai-orchestration
+      dockerfile: Dockerfile
+    container_name: ootd-ai-orchestration
+    env_file: .env
+    environment:
+      - PORT=8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  recommendation:
+    build:
+      context: ./services/recommendation
+      dockerfile: Dockerfile
+    container_name: ootd-recommendation
+    env_file: .env
+    environment:
+      - PORT=8002
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  avatar-service:
+    build:
+      context: ./services/avatar
+      dockerfile: Dockerfile
+    container_name: ootd-avatar
+    env_file: .env
+    environment:
+      - PORT=8003
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

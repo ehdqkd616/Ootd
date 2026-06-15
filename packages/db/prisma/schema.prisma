@@ -1,0 +1,140 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector"), uuidOssp(map: "uuid-ossp")]
+}
+
+model User {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String    @unique @db.VarChar(255)
+  passwordHash    String?   @map("password_hash") @db.VarChar(255)
+  provider        String    @default("email") @db.VarChar(50)
+  providerId      String?   @map("provider_id") @db.VarChar(255)
+  name            String?   @db.VarChar(100)
+  profileImageUrl String?   @map("profile_image_url")
+  isVerified      Boolean   @default(false) @map("is_verified")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+
+  clothingItems         ClothingItem[]
+  avatars               Avatar[]
+  outfits               Outfit[]
+  outfitRecommendations OutfitRecommendation[]
+
+  @@map("users")
+}
+
+model ClothingItem {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  name              String?  @db.VarChar(200)
+  category          String?  @db.VarChar(50)
+  subcategory       String?  @db.VarChar(50)
+  colorTags         String[] @map("color_tags")
+  seasonTags        String[] @map("season_tags")
+  styleTags         String[] @map("style_tags")
+  brand             String?  @db.VarChar(100)
+  sourceUrl         String?  @map("source_url")
+  originalImageUrl  String   @map("original_image_url")
+  processedImageUrl String?  @map("processed_image_url")
+  thumbnailUrl      String?  @map("thumbnail_url")
+  // embedding (vector(512)) is managed via raw SQL migration with pgvector
+  metadata          Json     @default("{}") @db.JsonB
+  isArchived        Boolean  @default(false) @map("is_archived")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outfitItems OutfitItem[]
+
+  @@index([userId])
+  @@index([userId, category])
+  @@map("clothing_items")
+}
+
+model Avatar {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  name           String?  @db.VarChar(100)
+  sourceImageUrl String   @map("source_image_url")
+  avatarBaseUrl  String?  @map("avatar_base_url")
+  bodyParams     Json?    @map("body_params") @db.JsonB
+  isDefault      Boolean  @default(false) @map("is_default")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outfits         Outfit[]
+  generatedImages GeneratedImage[]
+
+  @@map("avatars")
+}
+
+model Outfit {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  avatarId    String?  @map("avatar_id") @db.Uuid
+  name        String?  @db.VarChar(200)
+  description String?
+  tags        String[]
+  isPublic    Boolean  @default(false) @map("is_public")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatar          Avatar?          @relation(fields: [avatarId], references: [id], onDelete: SetNull)
+  outfitItems     OutfitItem[]
+  generatedImages GeneratedImage[]
+
+  @@index([userId])
+  @@map("outfits")
+}
+
+model OutfitItem {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outfitId       String  @map("outfit_id") @db.Uuid
+  clothingItemId String  @map("clothing_item_id") @db.Uuid
+  layerOrder     Int     @default(0) @map("layer_order")
+  positionData   Json?   @map("position_data") @db.JsonB
+
+  outfit       Outfit       @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+  clothingItem ClothingItem @relation(fields: [clothingItemId], references: [id], onDelete: Cascade)
+
+  @@index([outfitId])
+  @@map("outfit_items")
+}
+
+model GeneratedImage {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outfitId         String   @map("outfit_id") @db.Uuid
+  avatarId         String   @map("avatar_id") @db.Uuid
+  pose             String?  @db.VarChar(50)
+  imageUrl         String   @map("image_url")
+  generationParams Json?    @map("generation_params") @db.JsonB
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  outfit Outfit @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+  avatar Avatar @relation(fields: [avatarId], references: [id])
+
+  @@map("generated_images")
+}
+
+model OutfitRecommendation {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String   @map("user_id") @db.Uuid
+  promptText           String?  @map("prompt_text")
+  weatherData          Json?    @map("weather_data") @db.JsonB
+  recommendedOutfitIds String[] @map("recommended_outfit_ids") @db.Uuid
+  aiExplanation        String?  @map("ai_explanation")
+  feedback             String?  @db.VarChar(20)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("outfit_recommendations")
+}

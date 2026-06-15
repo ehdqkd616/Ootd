@@ -1,0 +1,60 @@
+const en = {
+  nav: {
+    dashboard: 'Dashboard',
+    wardrobe: 'Wardrobe',
+    outfits: 'Outfits',
+    avatars: 'Avatars',
+    recommendations: 'AI Picks',
+    settings: 'Settings',
+  },
+  auth: {
+    login: 'Log in',
+    register: 'Sign up',
+    email: 'Email',
+    password: 'Password',
+    name: 'Name',
+    forgotPassword: 'Forgot password?',
+    noAccount: "Don't have an account?",
+    hasAccount: 'Already have an account?',
+    loginWithGoogle: 'Continue with Google',
+    loginWithKakao: 'Continue with Kakao',
+  },
+  wardrobe: {
+    title: 'My Wardrobe',
+    addItem: 'Add item',
+    uploadImage: 'Upload image',
+    importUrl: 'Import from URL',
+    noItems: 'No items yet. Add your first one!',
+    category: {
+      all: 'All',
+      top: 'Tops',
+      bottom: 'Bottoms',
+      outer: 'Outerwear',
+      shoes: 'Shoes',
+      accessory: 'Accessories',
+      etc: 'Other',
+    },
+  },
+  outfit: {
+    title: 'Outfits',
+    newOutfit: 'New Outfit',
+    generateImage: 'Generate AI Image',
+    noOutfits: 'No saved outfits yet.',
+  },
+  recommendation: {
+    title: 'AI Style Picks',
+    placeholder: "What's the occasion? (e.g. I have an important meeting today)",
+    send: 'Get Suggestions',
+    useWeather: 'Use current weather',
+  },
+  common: {
+    save: 'Save',
+    cancel: 'Cancel',
+    delete: 'Delete',
+    edit: 'Edit',
+    loading: 'Loading...',
+    error: 'Something went wrong',
+  },
+};
+
+export default en;

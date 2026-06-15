@@ -1,0 +1,31 @@
+{
+  "name": "ootd",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "db:generate": "pnpm --filter @ootd/db prisma generate",
+    "db:migrate:dev": "pnpm --filter @ootd/db prisma migrate dev",
+    "db:migrate:prod": "pnpm --filter @ootd/db prisma migrate deploy",
+    "db:push": "pnpm --filter @ootd/db prisma db push",
+    "db:studio": "pnpm --filter @ootd/db prisma studio",
+    "db:seed": "pnpm --filter @ootd/db prisma db seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.5.0",
+    "prettier": "^3.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
