@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
+    "dev": "nodemon --watch src --ext ts --exec \"node --env-file=../../.env -r ts-node/register src/index.ts\"",
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint src --ext ts",
@@ -13,6 +13,8 @@
     "@ootd/db": "workspace:*",
     "@ootd/types": "workspace:*",
     "bcrypt": "^5.1.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.0",
     "cors": "^2.8.5",
     "express": "^4.19.0",
     "express-rate-limit": "^7.3.0",
@@ -27,6 +29,7 @@
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.0",
+    "@types/cookie-parser": "^1.4.0",
     "@types/cors": "^2.8.0",
     "@types/express": "^4.17.0",
     "@types/jsonwebtoken": "^9.0.0",

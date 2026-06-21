@@ -62,9 +62,9 @@ export function Recommendations() {
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-5 space-y-3">
           <h2 className="font-semibold text-sm text-primary">AI 추천 결과</h2>
           <p className="text-sm leading-relaxed">{result.explanation}</p>
-          {result.suggestedItems.length > 0 && (
+          {(result.suggestedItems?.length ?? 0) > 0 && (
             <div className="grid grid-cols-4 gap-2">
-              {result.suggestedItems.flat().slice(0, 4).map((item) => (
+              {(result.suggestedItems ?? []).flat().slice(0, 4).map((item) => (
                 <div key={item.id} className="aspect-square rounded-lg overflow-hidden border border-border">
                   <img
                     src={item.thumbnailUrl ?? item.originalImageUrl}

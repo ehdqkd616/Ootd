@@ -21,7 +21,7 @@ const uploadLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 20 });
 
 wardrobeRouter.get('/', async (req: AuthRequest, res: Response) => {
   const filters = {
-    category: req.query.category as string | undefined,
+    category: req.query.category as import('@ootd/types').Category | undefined,
     search: req.query.search as string | undefined,
     isArchived: req.query.isArchived === 'true',
     page: Number(req.query.page ?? 1),
@@ -51,6 +51,7 @@ wardrobeRouter.post('/', uploadLimiter, upload.single('image'), async (req: Auth
     );
     res.status(201).json(item);
   } catch (err) {
+    console.error('[wardrobe upload error]', err);
     res.status(500).json({ message: '업로드 실패' });
   }
 });

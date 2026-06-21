@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Plus, Sparkles } from 'lucide-react';
+import { Plus, Sparkles, Shirt } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAppStore } from '@/stores/app.store';
 
@@ -81,6 +81,36 @@ export function Dashboard() {
           ) : (
             <p className="col-span-4 text-sm text-muted-foreground py-8 text-center">
               아직 등록된 옷이 없습니다.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* Recent outfits */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold">최근 코디</h2>
+          <Link to="/outfits" className="text-sm text-muted-foreground hover:text-foreground">
+            전체 보기
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {outfits?.data.length ? (
+            outfits.data.map((outfit) => (
+              <Link
+                key={outfit.id}
+                to={`/outfits/${outfit.id}/fitting`}
+                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-accent transition-colors"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <Shirt className="h-4 w-4 text-primary" />
+                </div>
+                <p className="text-sm font-medium truncate">{outfit.name ?? '이름 없는 코디'}</p>
+              </Link>
+            ))
+          ) : (
+            <p className="col-span-2 text-sm text-muted-foreground py-4 text-center">
+              아직 저장된 코디가 없습니다.
             </p>
           )}
         </div>

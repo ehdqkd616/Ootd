@@ -85,6 +85,9 @@ export interface Avatar {
   name: string | null;
   sourceImageUrl: string;
   avatarBaseUrl: string | null;
+  fullBodyUrl: string | null;
+  upperBodyUrl: string | null;
+  lowerBodyUrl: string | null;
   bodyParams: Record<string, unknown> | null;
   isDefault: boolean;
   createdAt: string;
@@ -92,6 +95,7 @@ export interface Avatar {
 
 export interface CreateAvatarRequest {
   name?: string;
+  bodyParams?: Record<string, unknown>;
 }
 
 // ===== Outfit =====

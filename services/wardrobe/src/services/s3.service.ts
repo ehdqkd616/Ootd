@@ -1,42 +1,43 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
-import sharp from 'sharp';
 
-const s3 = new S3Client({ region: process.env.AWS_REGION ?? 'ap-northeast-2' });
-
-const BUCKET_USER = process.env.AWS_S3_BUCKET_USER_IMAGES!;
-const BUCKET_PROCESSED = process.env.AWS_S3_BUCKET_PROCESSED_IMAGES!;
-
-export async function uploadOriginal(buffer: Buffer, mimeType: string, userId: string) {
-  const key = `users/${userId}/original/${randomUUID()}`;
-  await s3.send(new PutObjectCommand({
-    Bucket: BUCKET_USER,
-    Key: key,
-    Body: buffer,
-    ContentType: mimeType,
-  }));
-  return `https://${BUCKET_USER}.s3.amazonaws.com/${key}`;
+async function tryS3Upload(buffer: Buffer, mimeType: string, key: string, bucket: string): Promise<string | null> {
+  try {
+    const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+    const s3 = new S3Client({ region: process.env.AWS_REGION ?? 'ap-northeast-2' });
+    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: mimeType }));
+    return `https://${bucket}.s3.amazonaws.com/${key}`;
+  } catch {
+    return null;
+  }
 }
 
-export async function uploadThumbnail(buffer: Buffer, userId: string) {
+export async function uploadOriginal(buffer: Buffer, mimeType: string, userId: string): Promise<string> {
+  const BUCKET = process.env.AWS_S3_BUCKET_USER_IMAGES;
+  if (BUCKET) {
+    const url = await tryS3Upload(buffer, mimeType, `users/${userId}/original/${randomUUID()}`, BUCKET);
+    if (url) return url;
+  }
+  return `data:${mimeType};base64,${buffer.toString('base64')}`;
+}
+
+export async function uploadThumbnail(buffer: Buffer, userId: string): Promise<string> {
+  const sharp = (await import('sharp')).default;
   const thumb = await sharp(buffer).resize(400, 400, { fit: 'inside' }).webp({ quality: 80 }).toBuffer();
-  const key = `users/${userId}/thumbnails/${randomUUID()}.webp`;
-  await s3.send(new PutObjectCommand({
-    Bucket: BUCKET_USER,
-    Key: key,
-    Body: thumb,
-    ContentType: 'image/webp',
-  }));
-  return `https://${BUCKET_USER}.s3.amazonaws.com/${key}`;
+  const BUCKET = process.env.AWS_S3_BUCKET_USER_IMAGES;
+  if (BUCKET) {
+    const url = await tryS3Upload(thumb, 'image/webp', `users/${userId}/thumbnails/${randomUUID()}.webp`, BUCKET);
+    if (url) return url;
+  }
+  return `data:image/webp;base64,${thumb.toString('base64')}`;
 }
 
 export async function deleteFile(url: string) {
-  const key = new URL(url).pathname.slice(1);
-  const bucket = new URL(url).hostname.split('.')[0];
-  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
-}
-
-export async function getPresignedUrl(bucket: string, key: string) {
-  return getSignedUrl(s3, new PutObjectCommand({ Bucket: bucket, Key: key }), { expiresIn: 3600 });
+  if (url.startsWith('data:')) return;
+  try {
+    const { S3Client, DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+    const s3 = new S3Client({ region: process.env.AWS_REGION ?? 'ap-northeast-2' });
+    const key = new URL(url).pathname.slice(1);
+    const bucket = new URL(url).hostname.split('.')[0];
+    await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  } catch { /* ignore */ }
 }

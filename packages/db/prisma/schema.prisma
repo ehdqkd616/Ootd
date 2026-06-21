@@ -64,6 +64,9 @@ model Avatar {
   name           String?  @db.VarChar(100)
   sourceImageUrl String   @map("source_image_url")
   avatarBaseUrl  String?  @map("avatar_base_url")
+  fullBodyUrl    String?  @map("full_body_url")
+  upperBodyUrl   String?  @map("upper_body_url")
+  lowerBodyUrl   String?  @map("lower_body_url")
   bodyParams     Json?    @map("body_params") @db.JsonB
   isDefault      Boolean  @default(false) @map("is_default")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz

@@ -14,11 +14,11 @@ export interface TokenPayload {
 }
 
 export function signAccessToken(payload: TokenPayload) {
-  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES });
+  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES as never });
 }
 
 export function signRefreshToken(payload: TokenPayload) {
-  return jwt.sign(payload, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES });
+  return jwt.sign(payload, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES as never });
 }
 
 export function verifyAccessToken(token: string) {

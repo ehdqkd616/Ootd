@@ -19,7 +19,7 @@ import type {
 } from '@ootd/types';
 
 export class OotdApiClient {
-  private http: AxiosInstance;
+  http: AxiosInstance;
   private accessToken: string | null = null;
 
   constructor(baseURL: string) {
@@ -96,10 +96,7 @@ export class OotdApiClient {
 
     upload: (formData: FormData, meta?: CreateClothingItemRequest) =>
       this.http
-        .post<ClothingItem>('/wardrobe', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          params: meta,
-        })
+        .post<ClothingItem>('/wardrobe', formData, { params: meta })
         .then((r) => r.data),
 
     importUrl: (sourceUrl: string, meta?: CreateClothingItemRequest) =>
@@ -125,10 +122,7 @@ export class OotdApiClient {
 
     create: (formData: FormData, meta?: CreateAvatarRequest) =>
       this.http
-        .post<Avatar>('/avatars', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          params: meta,
-        })
+        .post<Avatar>('/avatars', formData, { params: meta })
         .then((r) => r.data),
 
     update: (id: string, body: Partial<CreateAvatarRequest>) =>
@@ -138,6 +132,16 @@ export class OotdApiClient {
 
     setDefault: (id: string) =>
       this.http.post(`/avatars/${id}/default`).then((r) => r.data),
+
+    generateFullBody: (id: string) =>
+      this.http.post<Avatar>(`/avatars/${id}/generate-fullbody`).then((r) => r.data),
+
+    uploadPhoto: (id: string, photoType: 'fullBody' | 'upperBody' | 'lowerBody', file: File) => {
+      const formData = new FormData();
+      formData.append('photo', file);
+      formData.append('photoType', photoType);
+      return this.http.post<Avatar>(`/avatars/${id}/photos`, formData).then((r) => r.data);
+    },
   };
 
   // ===== Outfits =====
@@ -165,6 +169,12 @@ export class OotdApiClient {
 
     getImages: (id: string) =>
       this.http.get<GeneratedImage[]>(`/outfits/${id}/images`).then((r) => r.data),
+
+    deleteImage: (id: string, imageId: string) =>
+      this.http.delete(`/outfits/${id}/images/${imageId}`).then((r) => r.data),
+
+    deleteAllImages: (id: string) =>
+      this.http.delete(`/outfits/${id}/images`).then((r) => r.data),
 
     getJob: (jobId: string) =>
       this.http.get<AIJob>(`/jobs/${jobId}`).then((r) => r.data),

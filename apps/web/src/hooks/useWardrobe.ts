@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAppStore } from '@/stores/app.store';
-import type { CreateClothingItemRequest } from '@ootd/types';
+import type { CreateClothingItemRequest, ClothingItem } from '@ootd/types';
 
 export function useWardrobe() {
   const { wardrobeFilters } = useAppStore();
@@ -37,6 +37,12 @@ export function useWardrobe() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['wardrobe'] }),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<ClothingItem> }) =>
+      api.wardrobe.update(id, data as Partial<CreateClothingItemRequest>),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['wardrobe'] }),
+  });
+
   return {
     items: listQuery.data?.data ?? [],
     total: listQuery.data?.total ?? 0,
@@ -45,7 +51,9 @@ export function useWardrobe() {
     upload: uploadMutation.mutateAsync,
     importUrl: importUrlMutation.mutateAsync,
     deleteItem: deleteMutation.mutate,
+    deleteItemAsync: deleteMutation.mutateAsync,
     archiveItem: archiveMutation.mutate,
+    updateItem: updateMutation.mutateAsync,
     isUploading: uploadMutation.isPending,
   };
 }
