@@ -1,0 +1,8 @@
+{
+  "name": "@ootd/desktop-launcher",
+  "private": true,
+  "description": "Electron binary launcher (kept separate so electron npm package doesn't shadow Electron's built-in modules)",
+  "devDependencies": {
+    "electron": "^32.3.3"
+  }
+}

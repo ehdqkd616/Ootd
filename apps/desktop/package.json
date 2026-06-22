@@ -1,0 +1,45 @@
+{
+  "name": "@ootd/desktop",
+  "version": "1.0.0",
+  "description": "OOTD 서비스 매니저",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "node start.js",
+    "make-icon": "node make-icon.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^32.3.3",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.ootd.manager",
+    "productName": "OOTD 서비스 매니저",
+    "copyright": "Copyright © 2025",
+    "directories": {
+      "output": "dist-build"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OOTD 서비스 매니저",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
+    }
+  }
+}

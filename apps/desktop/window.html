@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'">
+<title>OOTD 서비스 매니저</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0f172a;
+    --surface:  #1e293b;
+    --border:   #334155;
+    --muted:    #475569;
+    --text:     #e2e8f0;
+    --sub:      #94a3b8;
+    --green:    #22c55e;
+    --yellow:   #f59e0b;
+    --red:      #ef4444;
+    --blue:     #3b82f6;
+    --radius:   8px;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; overflow: hidden; }
+
+  /* ── 레이아웃 ── */
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ── 헤더 ── */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    flex-shrink: 0; -webkit-app-region: drag;
+  }
+  header h1 { font-size: 14px; font-weight: 600; flex: 1; }
+  header .badge { font-size: 11px; color: var(--sub); }
+
+  .btn {
+    -webkit-app-region: no-drag;
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border-radius: var(--radius); border: 1px solid var(--border);
+    background: transparent; color: var(--text); cursor: pointer; font-size: 12px;
+    transition: background .15s;
+  }
+  .btn:hover  { background: var(--border); }
+  .btn.green  { border-color: var(--green); color: var(--green); }
+  .btn.green:hover  { background: rgba(34,197,94,.15); }
+  .btn.red    { border-color: var(--red);   color: var(--red);   }
+  .btn.red:hover    { background: rgba(239,68,68,.15);  }
+  .btn.blue   { border-color: var(--blue);  color: var(--blue);  }
+  .btn.blue:hover   { background: rgba(59,130,246,.15); }
+
+  /* ── 본문 ── */
+  main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── 사이드바 ── */
+  aside {
+    width: 220px; flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+  .aside-title { padding: 10px 14px 6px; font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: .05em; }
+
+  .service-card {
+    margin: 4px 8px; border-radius: var(--radius);
+    border: 1px solid var(--border); background: var(--surface);
+    padding: 10px 12px;
+  }
+  .service-card .row { display: flex; align-items: center; gap: 8px; }
+  .service-card .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .service-card.running .dot  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .service-card.starting .dot { background: var(--yellow); animation: pulse 1s infinite; }
+  .service-card.error .dot    { background: var(--red); }
+
+  .service-card .name  { font-weight: 600; font-size: 12px; flex: 1; }
+  .service-card .port  { font-size: 11px; color: var(--sub); font-family: monospace; }
+  .service-card .state { font-size: 10px; color: var(--sub); margin-top: 4px; padding-left: 16px; }
+  .service-card .state.running  { color: var(--green); }
+  .service-card .state.starting { color: var(--yellow); }
+  .service-card .state.error    { color: var(--red); }
+
+  .service-card .actions { display: flex; gap: 4px; margin-top: 8px; }
+  .service-btn {
+    flex: 1; padding: 3px 0; border-radius: 4px; border: 1px solid var(--border);
+    background: transparent; color: var(--sub); cursor: pointer; font-size: 11px;
+    transition: background .1s, color .1s;
+  }
+  .service-btn:hover { background: var(--border); color: var(--text); }
+  .service-btn.start:hover { border-color: var(--green); color: var(--green); background: rgba(34,197,94,.12); }
+  .service-btn.stop:hover  { border-color: var(--red);   color: var(--red);   background: rgba(239,68,68,.12); }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+
+  /* ── 로그 영역 ── */
+  #log-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .log-tabs {
+    display: flex; align-items: center; gap: 0;
+    padding: 0 8px; border-bottom: 1px solid var(--border);
+    background: var(--surface); flex-shrink: 0;
+  }
+  .tab {
+    padding: 8px 14px; cursor: pointer; font-size: 12px; color: var(--sub);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--blue); }
+
+  .log-controls {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .log-search {
+    flex: 1; padding: 4px 8px; border-radius: var(--radius); border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); font-size: 12px;
+    outline: none;
+  }
+  .log-search:focus { border-color: var(--blue); }
+  .check-label { display: flex; align-items: center; gap: 4px; color: var(--sub); font-size: 11px; cursor: pointer; }
+  .count { font-size: 11px; color: var(--muted); }
+
+  #log-output {
+    flex: 1; overflow-y: auto; padding: 4px 0;
+    font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+    font-size: 12px; line-height: 1.55;
+  }
+
+  .log-line {
+    display: flex; gap: 8px; padding: 1px 12px;
+    border-bottom: 1px solid transparent;
+  }
+  .log-line:hover { background: rgba(255,255,255,.03); }
+  .log-line.stderr { background: rgba(239,68,68,.05); }
+
+  .log-line .ts   { color: var(--muted); flex-shrink: 0; font-size: 11px; padding-top: 1px; }
+  .log-line .svc  {
+    flex-shrink: 0; font-size: 10px; padding: 1px 5px; border-radius: 3px;
+    font-weight: 600; align-self: flex-start; margin-top: 1px;
+  }
+  .log-line .msg  { color: var(--text); word-break: break-all; white-space: pre-wrap; }
+  .log-line.stderr .msg { color: #fca5a5; }
+
+  .svc-auth     { background: rgba(139,92,246,.25); color: #a78bfa; }
+  .svc-wardrobe { background: rgba(59,130,246,.25);  color: #93c5fd; }
+  .svc-outfit   { background: rgba(236,72,153,.25);  color: #f9a8d4; }
+  .svc-web      { background: rgba(34,197,94,.25);   color: #86efac; }
+
+  .empty-log { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); flex-direction: column; gap: 8px; }
+  .empty-log span { font-size: 32px; }
+
+  /* ── 스크롤바 ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- 헤더 -->
+  <header>
+    <h1>OOTD 서비스 매니저</h1>
+    <span class="badge" id="status-summary">로딩 중...</span>
+    <button class="btn green" onclick="api.startAll()">▶ 전체 시작</button>
+    <button class="btn red"   onclick="api.stopAll()">■ 전체 중지</button>
+    <button class="btn blue"  onclick="api.openBrowser()">🌐 브라우저</button>
+  </header>
+
+  <main>
+    <!-- 사이드바: 서비스 상태 -->
+    <aside>
+      <div class="aside-title">서비스</div>
+      <div id="service-list"></div>
+    </aside>
+
+    <!-- 로그 패널 -->
+    <div id="log-panel">
+      <div class="log-tabs">
+        <div class="tab active" data-tab="all"      onclick="setTab('all')">전체</div>
+        <div class="tab"        data-tab="auth"     onclick="setTab('auth')">Auth</div>
+        <div class="tab"        data-tab="wardrobe" onclick="setTab('wardrobe')">Wardrobe</div>
+        <div class="tab"        data-tab="outfit"   onclick="setTab('outfit')">Outfit</div>
+        <div class="tab"        data-tab="web"      onclick="setTab('web')">Web</div>
+      </div>
+      <div class="log-controls">
+        <input class="log-search" id="search" placeholder="로그 검색..." oninput="renderLogs()">
+        <label class="check-label">
+          <input type="checkbox" id="auto-scroll" checked onchange="void 0"> 자동 스크롤
+        </label>
+        <span class="count" id="log-count">0개</span>
+        <button class="btn" onclick="clearLogs()">지우기</button>
+      </div>
+      <div id="log-output">
+        <div class="empty-log"><span>📋</span>서비스를 시작하면 로그가 표시됩니다</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ─── 상태 ──────────────────────────────────────────────────────────────────────
+let services  = [];
+let statuses  = {};
+let allLogs   = [];
+let activeTab = 'all';
+
+// ─── 초기 로드 ─────────────────────────────────────────────────────────────────
+(async () => {
+  const state = await api.getInitialState();
+  services = state.services;
+  statuses = state.statuses;
+  allLogs  = state.logs;
+
+  renderSidebar();
+  renderLogs();
+  updateSummary();
+})();
+
+// ─── IPC 이벤트 수신 ───────────────────────────────────────────────────────────
+api.onStatus((ev) => {
+  statuses[ev.id] = { state: ev.state, pid: ev.pid };
+  updateCard(ev.id);
+  updateSummary();
+});
+
+api.onLog((entry) => {
+  allLogs.push(entry);
+  if (allLogs.length > 2000) allLogs.shift();
+
+  if (activeTab === 'all' || activeTab === entry.serviceId) {
+    const q = document.getElementById('search').value.toLowerCase();
+    if (!q || entry.text.toLowerCase().includes(q)) {
+      appendLogLine(entry);
+      maybeSrroll();
+    }
+  }
+  document.getElementById('log-count').textContent = `${allLogs.length}개`;
+});
+
+// ─── 사이드바 ──────────────────────────────────────────────────────────────────
+function renderSidebar() {
+  const list = document.getElementById('service-list');
+  list.innerHTML = '';
+  for (const s of services) {
+    const div = document.createElement('div');
+    div.className = 'service-card';
+    div.id = `card-${s.id}`;
+    div.innerHTML = `
+      <div class="row">
+        <div class="dot"></div>
+        <span class="name">${s.name}</span>
+        <span class="port">:${s.port}</span>
+      </div>
+      <div class="state" id="state-${s.id}">stopped</div>
+      <div class="actions">
+        <button class="service-btn start" onclick="api.startService('${s.id}')">▶ 시작</button>
+        <button class="service-btn stop"  onclick="api.stopService('${s.id}')">■ 중지</button>
+      </div>`;
+    list.appendChild(div);
+    updateCard(s.id);
+  }
+}
+
+function updateCard(id) {
+  const card  = document.getElementById(`card-${id}`);
+  const label = document.getElementById(`state-${id}`);
+  if (!card || !label) return;
+  const st = statuses[id]?.state ?? 'stopped';
+  card.className  = `service-card ${st}`;
+  const map = { stopped: '중지됨', starting: '시작 중...', running: '실행 중', error: '오류' };
+  label.textContent = map[st] ?? st;
+  label.className = `state ${st}`;
+}
+
+function updateSummary() {
+  const vals    = Object.values(statuses);
+  const running = vals.filter((v) => v.state === 'running').length;
+  const total   = services.length;
+  const el      = document.getElementById('status-summary');
+  if (running === total) {
+    el.textContent = `✓ 전체 실행 중 (${total}/${total})`;
+    el.style.color = '#22c55e';
+  } else if (running > 0) {
+    el.textContent = `⚠ 일부 실행 중 (${running}/${total})`;
+    el.style.color = '#f59e0b';
+  } else {
+    el.textContent = `○ 모두 중지됨`;
+    el.style.color = '#6b7280';
+  }
+}
+
+// ─── 탭 ────────────────────────────────────────────────────────────────────────
+function setTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach((t) =>
+    t.classList.toggle('active', t.dataset.tab === tab)
+  );
+  renderLogs();
+}
+
+// ─── 로그 렌더 ─────────────────────────────────────────────────────────────────
+function renderLogs() {
+  const q    = document.getElementById('search').value.toLowerCase();
+  const out  = document.getElementById('log-output');
+  const show = allLogs.filter((e) =>
+    (activeTab === 'all' || e.serviceId === activeTab) &&
+    (!q || e.text.toLowerCase().includes(q))
+  );
+
+  document.getElementById('log-count').textContent = `${show.length}개`;
+
+  if (show.length === 0) {
+    out.innerHTML = '<div class="empty-log"><span>📋</span>표시할 로그가 없습니다</div>';
+    return;
+  }
+
+  out.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  for (const e of show) frag.appendChild(makeLogEl(e));
+  out.appendChild(frag);
+  maybeSrroll();
+}
+
+function appendLogLine(entry) {
+  const out = document.getElementById('log-output');
+  // 빈 placeholder 제거
+  if (out.querySelector('.empty-log')) out.innerHTML = '';
+  out.appendChild(makeLogEl(entry));
+  // DOM 제한
+  while (out.children.length > 2000) out.removeChild(out.firstChild);
+}
+
+function makeLogEl(e) {
+  const d   = new Date(e.time);
+  const ts  = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const div = document.createElement('div');
+  div.className = `log-line${e.isError ? ' stderr' : ''}`;
+  const svcLabel = services.find((s) => s.id === e.serviceId)?.name?.split(' ')[0] ?? e.serviceId;
+  div.innerHTML = `
+    <span class="ts">${ts}</span>
+    <span class="svc svc-${e.serviceId}">${svcLabel}</span>
+    <span class="msg">${escHtml(e.text)}</span>`;
+  return div;
+}
+
+function maybeSrroll() {
+  if (!document.getElementById('auto-scroll').checked) return;
+  const out = document.getElementById('log-output');
+  out.scrollTop = out.scrollHeight;
+}
+
+function clearLogs() {
+  allLogs = [];
+  document.getElementById('log-output').innerHTML =
+    '<div class="empty-log"><span>📋</span>로그가 지워졌습니다</div>';
+  document.getElementById('log-count').textContent = '0개';
+}
+
+// ─── 유틸 ──────────────────────────────────────────────────────────────────────
+const pad     = (n) => String(n).padStart(2, '0');
+const escHtml = (s) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+</script>
+</body>
+</html>
