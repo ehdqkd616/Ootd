@@ -8,7 +8,7 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const memoryJobStore = new Map<string, string>();
 
-const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
+const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6380', {
   enableOfflineQueue: false,
   maxRetriesPerRequest: 0,
   retryStrategy: () => null,

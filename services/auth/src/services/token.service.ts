@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { Redis } from 'ioredis';
 
-const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
+const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6380');
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET!;
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET!;
