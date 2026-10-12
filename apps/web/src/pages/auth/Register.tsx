@@ -4,11 +4,18 @@ import { useAuth } from '@/hooks/useAuth';
 
 export function Register() {
   const { register, isRegistering, registerError } = useAuth();
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({ name: '', username: '', password: '' });
+  const [confirm, setConfirm] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    register(form);
+    if (form.password !== confirm) {
+      setLocalError('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    setLocalError(null);
+    register({ ...form, username: form.username.trim() });
   };
 
   const update = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -23,14 +30,14 @@ export function Register() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {registerError && (
+          {(localError || registerError) && (
             <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              회원가입 중 오류가 발생했습니다.
+              {localError ?? '회원가입 중 오류가 발생했습니다. 이미 사용 중인 아이디인지 확인해 주세요.'}
             </div>
           )}
           {[
             { field: 'name' as const, label: '이름', type: 'text', placeholder: '홍길동' },
-            { field: 'email' as const, label: '이메일', type: 'email', placeholder: 'hello@example.com' },
+            { field: 'username' as const, label: '아이디', type: 'text', placeholder: '영문·숫자·_·- 3~32자' },
             { field: 'password' as const, label: '비밀번호', type: 'password', placeholder: '8자 이상 입력' },
           ].map(({ field, label, type, placeholder }) => (
             <div key={field} className="space-y-1">
@@ -43,9 +50,24 @@ export function Register() {
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder={placeholder}
                 minLength={field === 'password' ? 8 : undefined}
+                pattern={field === 'username' ? '[A-Za-z0-9_\\-]{3,32}' : undefined}
+                title={field === 'username' ? '영문, 숫자, _, - 조합 3~32자' : undefined}
+                autoCapitalize={field === 'username' ? 'none' : undefined}
               />
             </div>
           ))}
+          <div className="space-y-1">
+            <label className="text-sm font-medium">비밀번호 확인</label>
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="비밀번호 재입력"
+            />
+          </div>
           <button
             type="submit"
             disabled={isRegistering}

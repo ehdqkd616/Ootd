@@ -10,7 +10,7 @@ const en = {
   auth: {
     login: 'Log in',
     register: 'Sign up',
-    email: 'Email',
+    username: 'Username',
     password: 'Password',
     name: 'Name',
     forgotPassword: 'Forgot password?',

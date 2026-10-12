@@ -14,14 +14,16 @@ export const authRouter = Router();
 
 const authLimiter = rateLimit({ windowMs: 60_000, max: 10 });
 
+// 아이디: 영문/숫자/_/- 3~32자 (모든 프로젝트 공통 규칙)
 const registerSchema = z.object({
-  email: z.string().email(),
+  username: z.string().trim().regex(/^[A-Za-z0-9_-]{3,32}$/, '아이디는 영문, 숫자, _, - 조합 3~32자여야 합니다.'),
   password: z.string().min(8),
   name: z.string().min(1).max(100),
 });
 
+// 로그인은 아이디 형식을 제한하지 않는다 — 예전 계정은 이메일이 아이디다
 const loginSchema = z.object({
-  email: z.string().email(),
+  username: z.string().trim().min(1).max(255),
   password: z.string(),
 });
 
@@ -31,7 +33,7 @@ authRouter.post('/register', authLimiter, async (req: Request, res: Response) =>
 
   try {
     const { user, accessToken, refreshToken } = await authService.register(
-      parsed.data.email,
+      parsed.data.username,
       parsed.data.password,
       parsed.data.name,
     );
@@ -43,8 +45,8 @@ authRouter.post('/register', authLimiter, async (req: Request, res: Response) =>
     });
     res.status(201).json({ user, accessToken });
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === 'EMAIL_EXISTS') {
-      return res.status(409).json({ message: '이미 사용 중인 이메일입니다.', code: 'EMAIL_EXISTS' });
+    if (err instanceof Error && err.message === 'USERNAME_EXISTS') {
+      return res.status(409).json({ message: '이미 사용 중인 아이디입니다.', code: 'USERNAME_EXISTS' });
     }
     res.status(500).json({ message: '서버 오류', code: 'INTERNAL_ERROR' });
   }
@@ -56,7 +58,7 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
 
   try {
     const { user, accessToken, refreshToken } = await authService.login(
-      parsed.data.email,
+      parsed.data.username,
       parsed.data.password,
     );
     res.cookie('refreshToken', refreshToken, {
@@ -68,7 +70,7 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
     res.json({ user, accessToken });
   } catch (err: unknown) {
     if (err instanceof Error && err.message === 'INVALID_CREDENTIALS') {
-      return res.status(401).json({ message: '이메일 또는 비밀번호가 올바르지 않습니다.', code: 'INVALID_CREDENTIALS' });
+      return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.', code: 'INVALID_CREDENTIALS' });
     }
     res.status(500).json({ message: '서버 오류', code: 'INTERNAL_ERROR' });
   }
@@ -88,8 +90,8 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
   try {
     const payload = verifyRefreshToken(refreshToken);
     const user = await authService.findById(payload.userId);
-    const newAccessToken = signAccessToken({ userId: user.id, email: user.email });
-    const newRefreshToken = signRefreshToken({ userId: user.id, email: user.email });
+    const newAccessToken = signAccessToken({ userId: user.id, username: user.username });
+    const newRefreshToken = signRefreshToken({ userId: user.id, username: user.username });
 
     res.cookie('refreshToken', newRefreshToken, {
       httpOnly: true,

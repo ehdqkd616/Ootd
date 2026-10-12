@@ -5,10 +5,10 @@ import type { User } from '@ootd/types';
 
 const BCRYPT_ROUNDS = 12;
 
-function toUserDto(u: { id: string; email: string; name: string | null; profileImageUrl: string | null; isVerified: boolean; provider: string; createdAt: Date; updatedAt: Date }): User {
+function toUserDto(u: { id: string; username: string; name: string | null; profileImageUrl: string | null; isVerified: boolean; provider: string; createdAt: Date; updatedAt: Date }): User {
   return {
     id: u.id,
-    email: u.email,
+    username: u.username,
     name: u.name,
     profileImageUrl: u.profileImageUrl,
     isVerified: u.isVerified,
@@ -18,30 +18,30 @@ function toUserDto(u: { id: string; email: string; name: string | null; profileI
   };
 }
 
-export async function register(email: string, password: string, name: string) {
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) throw new Error('EMAIL_EXISTS');
+export async function register(username: string, password: string, name: string) {
+  const existing = await prisma.user.findUnique({ where: { username } });
+  if (existing) throw new Error('USERNAME_EXISTS');
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const user = await prisma.user.create({
-    data: { email, passwordHash, name, provider: 'email' },
+    data: { username, passwordHash, name, provider: 'email' },
   });
 
-  const accessToken = signAccessToken({ userId: user.id, email: user.email });
-  const refreshToken = signRefreshToken({ userId: user.id, email: user.email });
+  const accessToken = signAccessToken({ userId: user.id, username: user.username });
+  const refreshToken = signRefreshToken({ userId: user.id, username: user.username });
 
   return { user: toUserDto(user), accessToken, refreshToken };
 }
 
-export async function login(email: string, password: string) {
-  const user = await prisma.user.findUnique({ where: { email, deletedAt: null } });
+export async function login(username: string, password: string) {
+  const user = await prisma.user.findUnique({ where: { username, deletedAt: null } });
   if (!user || !user.passwordHash) throw new Error('INVALID_CREDENTIALS');
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) throw new Error('INVALID_CREDENTIALS');
 
-  const accessToken = signAccessToken({ userId: user.id, email: user.email });
-  const refreshToken = signRefreshToken({ userId: user.id, email: user.email });
+  const accessToken = signAccessToken({ userId: user.id, username: user.username });
+  const refreshToken = signRefreshToken({ userId: user.id, username: user.username });
 
   return { user: toUserDto(user), accessToken, refreshToken };
 }

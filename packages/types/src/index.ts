@@ -1,7 +1,7 @@
 // ===== User =====
 export interface User {
   id: string;
-  email: string;
+  username: string;
   name: string | null;
   profileImageUrl: string | null;
   isVerified: boolean;
@@ -12,12 +12,12 @@ export interface User {
 
 // ===== Auth =====
 export interface LoginRequest {
-  email: string;
+  username: string;
   password: string;
 }
 
 export interface RegisterRequest {
-  email: string;
+  username: string;
   password: string;
   name: string;
 }

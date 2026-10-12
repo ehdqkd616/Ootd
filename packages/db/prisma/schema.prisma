@@ -11,7 +11,8 @@ datasource db {
 
 model User {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email           String    @unique @db.VarChar(255)
+  // 가입은 아이디로 받는다. 컬럼 이름은 예전 그대로 email (기존 계정은 이메일이 곧 아이디)
+  username        String    @unique @map("email") @db.VarChar(255)
   passwordHash    String?   @map("password_hash") @db.VarChar(255)
   provider        String    @default("email") @db.VarChar(50)
   providerId      String?   @map("provider_id") @db.VarChar(255)

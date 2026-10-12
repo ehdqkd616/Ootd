@@ -10,7 +10,7 @@ const ko = {
   auth: {
     login: '로그인',
     register: '회원가입',
-    email: '이메일',
+    username: '아이디',
     password: '비밀번호',
     name: '이름',
     forgotPassword: '비밀번호를 잊으셨나요?',

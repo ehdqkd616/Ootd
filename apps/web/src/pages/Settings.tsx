@@ -14,11 +14,11 @@ export function Settings() {
         <h2 className="font-semibold border-b border-border pb-2">프로필</h2>
         <div className="flex items-center gap-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground text-xl font-bold">
-            {user?.name?.[0] ?? user?.email?.[0] ?? 'U'}
+            {user?.name?.[0] ?? user?.username?.[0] ?? 'U'}
           </div>
           <div>
             <p className="font-medium">{user?.name}</p>
-            <p className="text-sm text-muted-foreground">{user?.email}</p>
+            <p className="text-sm text-muted-foreground">{user?.username}</p>
           </div>
         </div>
       </section>
