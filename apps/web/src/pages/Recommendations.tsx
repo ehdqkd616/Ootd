@@ -1,8 +1,20 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Send, CloudSun } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, errorMessage } from '@/lib/api';
 import type { RecommendationResponse } from '@ootd/types';
+
+// 브라우저 위치 (거부·미지원·5초 초과면 null → 서버가 서울 날씨 사용)
+function getPosition(): Promise<{ latitude: number; longitude: number } | null> {
+  if (!('geolocation' in navigator)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5_000, maximumAge: 30 * 60_000 },
+    );
+  });
+}
 
 export function Recommendations() {
   const [prompt, setPrompt] = useState('');
@@ -15,7 +27,10 @@ export function Recommendations() {
   });
 
   const recommendMutation = useMutation({
-    mutationFn: () => api.recommendations.create({ prompt, useWeather }),
+    mutationFn: async () => {
+      const position = useWeather ? await getPosition() : null;
+      return api.recommendations.create({ prompt, useWeather, ...position });
+    },
     onSuccess: (data) => {
       setResult(data);
       setPrompt('');
@@ -57,20 +72,36 @@ export function Recommendations() {
         </div>
       </div>
 
+      {recommendMutation.error && (
+        <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {errorMessage(recommendMutation.error, '추천을 받지 못했습니다. 잠시 후 다시 시도해 주세요.')}
+        </div>
+      )}
+
       {/* Result */}
       {result && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-5 space-y-3">
           <h2 className="font-semibold text-sm text-primary">AI 추천 결과</h2>
-          <p className="text-sm leading-relaxed">{result.explanation}</p>
+          {result.weather && (
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <CloudSun className="h-3.5 w-3.5" />
+              {result.weather.locationLabel} · {result.weather.description} {result.weather.temperature}°C
+              (최저 {result.weather.tempMin}° / 최고 {result.weather.tempMax}°) · 강수확률 {result.weather.precipitationProbability}%
+            </p>
+          )}
+          <p className="text-sm leading-relaxed whitespace-pre-line">{result.explanation}</p>
           {(result.suggestedItems?.length ?? 0) > 0 && (
             <div className="grid grid-cols-4 gap-2">
-              {(result.suggestedItems ?? []).flat().slice(0, 4).map((item) => (
-                <div key={item.id} className="aspect-square rounded-lg overflow-hidden border border-border">
-                  <img
-                    src={item.thumbnailUrl ?? item.originalImageUrl}
-                    alt={item.name ?? ''}
-                    className="h-full w-full object-cover"
-                  />
+              {(result.suggestedItems ?? []).flat().slice(0, 8).map((item) => (
+                <div key={item.id} className="space-y-1">
+                  <div className="aspect-square rounded-lg overflow-hidden border border-border">
+                    <img
+                      src={item.thumbnailUrl ?? item.originalImageUrl}
+                      alt={item.name ?? ''}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  {item.name && <p className="truncate text-xs text-muted-foreground">{item.name}</p>}
                 </div>
               ))}
             </div>

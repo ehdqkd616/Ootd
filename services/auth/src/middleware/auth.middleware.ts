@@ -3,7 +3,7 @@ import { verifyAccessToken, isBlacklisted } from '../services/token.service';
 
 export interface AuthRequest extends Request {
   userId?: string;
-  userEmail?: string;
+  loginId?: string;
 }
 
 export async function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
@@ -19,7 +19,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     }
     const payload = verifyAccessToken(token);
     req.userId = payload.userId;
-    req.userEmail = payload.email;
+    req.loginId = payload.loginId;
     next();
   } catch {
     return res.status(401).json({ message: 'Invalid token', code: 'INVALID_TOKEN' });

@@ -43,13 +43,14 @@ wardrobeRouter.get('/:id', async (req: AuthRequest, res: Response) => {
 wardrobeRouter.post('/', uploadLimiter, upload.single('image'), async (req: AuthRequest, res: Response) => {
   if (!req.file) return res.status(400).json({ message: '이미지가 필요합니다.' });
   try {
-    const item = await wardrobeService.createFromUpload(
+    // 전신 사진은 상의·하의 등 여러 아이템으로 나뉘어 등록된다
+    const items = await wardrobeService.createFromUpload(
       req.userId!,
       req.file.buffer,
       req.file.mimetype,
       req.body,
     );
-    res.status(201).json(item);
+    res.status(201).json({ items });
   } catch (err) {
     console.error('[wardrobe upload error]', err);
     res.status(500).json({ message: '업로드 실패' });

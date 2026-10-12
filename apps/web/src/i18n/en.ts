@@ -6,6 +6,7 @@ const en = {
     avatars: 'Avatars',
     recommendations: 'AI Picks',
     settings: 'Settings',
+    admin: 'Members',
   },
   auth: {
     login: 'Log in',

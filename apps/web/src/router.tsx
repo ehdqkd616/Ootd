@@ -13,6 +13,7 @@ import { OutfitFitting } from '@/pages/OutfitFitting';
 import { Avatars } from '@/pages/Avatars';
 import { Recommendations } from '@/pages/Recommendations';
 import { Settings } from '@/pages/Settings';
+import { Admin } from '@/pages/Admin';
 
 export const router = createBrowserRouter([
   {
@@ -43,6 +44,7 @@ export const router = createBrowserRouter([
       { path: '/avatars', element: <Avatars /> },
       { path: '/recommendations', element: <Recommendations /> },
       { path: '/settings', element: <Settings /> },
+      { path: '/admin', element: <Admin /> },
     ],
   },
 ]);

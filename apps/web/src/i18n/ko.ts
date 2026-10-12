@@ -6,6 +6,7 @@ const ko = {
     avatars: '아바타',
     recommendations: 'AI 추천',
     settings: '설정',
+    admin: '회원 관리',
   },
   auth: {
     login: '로그인',

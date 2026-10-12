@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { errorMessage } from '@/lib/api';
 
 export function Login() {
   const { login, isLoggingIn, loginError } = useAuth();
-  const [email, setEmail] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login({ email, password });
+    login({ loginId, password });
   };
 
   return (
@@ -23,18 +24,20 @@ export function Login() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {loginError && (
             <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              이메일 또는 비밀번호가 올바르지 않습니다.
+              {errorMessage(loginError, '로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.')}
             </div>
           )}
           <div className="space-y-1">
-            <label className="text-sm font-medium">이메일</label>
+            <label className="text-sm font-medium">아이디</label>
             <input
-              type="email"
+              type="text"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              autoCapitalize="none"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="hello@example.com"
+              placeholder="아이디"
             />
           </div>
           <div className="space-y-1">
@@ -42,6 +45,7 @@ export function Login() {
             <input
               type="password"
               required
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"

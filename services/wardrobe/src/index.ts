@@ -7,6 +7,8 @@ import { avatarRouter } from './routes/avatar.routes';
 const app = express();
 const PORT = process.env.PORT ?? 3002;
 
+// Caddy → nginx 뒤에 있으므로 사설망 프록시를 신뢰해야 req.ip가 실제 클라이언트 IP가 된다 (rate limit 키)
+app.set('trust proxy', 'loopback, uniquelocal');
 app.use(helmet());
 app.use(cors({ origin: process.env.CORS_ORIGIN, credentials: true }));
 app.use(express.json());

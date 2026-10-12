@@ -1,35 +1,39 @@
 // ===== User =====
 export interface User {
   id: string;
-  email: string;
+  loginId: string;
+  email: string | null;
   name: string | null;
   profileImageUrl: string | null;
   isVerified: boolean;
   provider: 'email' | 'google' | 'kakao' | 'apple';
+  isApproved: boolean;
+  isAdmin: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 // ===== Auth =====
 export interface LoginRequest {
-  email: string;
+  loginId: string;
   password: string;
 }
 
 export interface RegisterRequest {
-  email: string;
+  loginId: string;
   password: string;
   name: string;
+}
+
+// 가입만 되고 토큰은 발급되지 않는다 — 관리자 승인 후 로그인
+export interface RegisterResponse {
+  user: User;
+  pendingApproval: true;
 }
 
 export interface AuthResponse {
   user: User;
   accessToken: string;
-}
-
-export interface SocialLoginRequest {
-  code: string;
-  redirectUri: string;
 }
 
 // ===== Clothing Items =====
@@ -181,13 +185,28 @@ export interface OutfitRecommendation {
 export interface RecommendationRequest {
   prompt: string;
   useWeather?: boolean;
-  city?: string;
+  // 브라우저 위치 — 없으면 서버가 서울 날씨를 쓴다
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface WeatherInfo {
+  locationLabel: string;
+  description: string;
+  temperature: number;
+  feelsLike: number;
+  tempMin: number;
+  tempMax: number;
+  precipitationProbability: number;
+  humidity: number;
+  windSpeed: number;
 }
 
 export interface RecommendationResponse {
   recommendation: OutfitRecommendation;
   suggestedItems: ClothingItem[][];
   explanation: string;
+  weather: WeatherInfo | null;
 }
 
 // ===== Common =====

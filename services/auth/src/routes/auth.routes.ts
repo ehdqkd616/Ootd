@@ -2,49 +2,54 @@ import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import * as authService from '../services/auth.service';
-import {
-  signAccessToken,
-  signRefreshToken,
-  verifyRefreshToken,
-  blacklistToken,
-} from '../services/token.service';
+import { verifyRefreshToken, blacklistToken } from '../services/token.service';
 import { requireAuth, AuthRequest } from '../middleware/auth.middleware';
+import { sendSignupNotification } from '../services/mailer.service';
 
 export const authRouter = Router();
 
 const authLimiter = rateLimit({ windowMs: 60_000, max: 10 });
 
+const LOGIN_ID = /^[a-z][a-z0-9]{3,19}$/;
+
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().min(1).max(100),
+  loginId: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(LOGIN_ID, '아이디는 영문 소문자로 시작하는 4~20자 영문·숫자입니다.'),
+  password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다.').max(72),
+  name: z.string().trim().min(1, '이름을 입력하세요.').max(100),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string(),
+  loginId: z.string().trim().toLowerCase().min(1),
+  password: z.string().min(1),
 });
+
+const REFRESH_COOKIE = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
+  maxAge: 30 * 24 * 60 * 60 * 1000,
+};
 
 authRouter.post('/register', authLimiter, async (req: Request, res: Response) => {
   const parsed = registerSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ message: '유효하지 않은 입력값', errors: parsed.error.flatten() });
+  if (!parsed.success) {
+    const message = parsed.error.issues[0]?.message ?? '유효하지 않은 입력값';
+    return res.status(400).json({ message, code: 'VALIDATION_ERROR', errors: parsed.error.flatten() });
+  }
 
   try {
-    const { user, accessToken, refreshToken } = await authService.register(
-      parsed.data.email,
-      parsed.data.password,
-      parsed.data.name,
-    );
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
-    res.status(201).json({ user, accessToken });
+    const { user } = await authService.register(parsed.data.loginId, parsed.data.password, parsed.data.name);
+    // 관리자 승인 전에는 로그인할 수 없으므로 토큰·쿠키를 발급하지 않는다.
+    res.status(201).json({ user, pendingApproval: true });
+    // 알림 메일은 응답과 분리해서 보낸다 — SMTP가 느리거나 실패해도 가입은 그대로 성공.
+    void sendSignupNotification({ loginId: user.loginId, name: user.name, createdAt: new Date(user.createdAt) });
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === 'EMAIL_EXISTS') {
-      return res.status(409).json({ message: '이미 사용 중인 이메일입니다.', code: 'EMAIL_EXISTS' });
+    if (err instanceof Error && err.message === 'LOGIN_ID_EXISTS') {
+      return res.status(409).json({ message: '이미 사용 중인 아이디입니다.', code: 'LOGIN_ID_EXISTS' });
     }
     res.status(500).json({ message: '서버 오류', code: 'INTERNAL_ERROR' });
   }
@@ -52,23 +57,21 @@ authRouter.post('/register', authLimiter, async (req: Request, res: Response) =>
 
 authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
   const parsed = loginSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ message: '유효하지 않은 입력값' });
+  if (!parsed.success) return res.status(400).json({ message: '아이디와 비밀번호를 입력하세요.', code: 'VALIDATION_ERROR' });
 
   try {
     const { user, accessToken, refreshToken } = await authService.login(
-      parsed.data.email,
+      parsed.data.loginId,
       parsed.data.password,
     );
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refreshToken', refreshToken, REFRESH_COOKIE);
     res.json({ user, accessToken });
   } catch (err: unknown) {
     if (err instanceof Error && err.message === 'INVALID_CREDENTIALS') {
-      return res.status(401).json({ message: '이메일 또는 비밀번호가 올바르지 않습니다.', code: 'INVALID_CREDENTIALS' });
+      return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.', code: 'INVALID_CREDENTIALS' });
+    }
+    if (err instanceof Error && err.message === 'PENDING_APPROVAL') {
+      return res.status(403).json({ message: '관리자 승인 대기 중입니다. 승인되면 로그인할 수 있어요.', code: 'PENDING_APPROVAL' });
     }
     res.status(500).json({ message: '서버 오류', code: 'INTERNAL_ERROR' });
   }
@@ -87,18 +90,11 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
 
   try {
     const payload = verifyRefreshToken(refreshToken);
-    const user = await authService.findById(payload.userId);
-    const newAccessToken = signAccessToken({ userId: user.id, email: user.email });
-    const newRefreshToken = signRefreshToken({ userId: user.id, email: user.email });
-
-    res.cookie('refreshToken', newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
-    res.json({ user, accessToken: newAccessToken });
+    const { user, accessToken, refreshToken: newRefreshToken } = await authService.refresh(payload.userId);
+    res.cookie('refreshToken', newRefreshToken, REFRESH_COOKIE);
+    res.json({ user, accessToken });
   } catch {
+    res.clearCookie('refreshToken');
     res.status(401).json({ message: 'Invalid refresh token', code: 'INVALID_TOKEN' });
   }
 });

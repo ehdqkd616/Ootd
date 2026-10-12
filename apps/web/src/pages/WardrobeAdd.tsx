@@ -89,6 +89,7 @@ export function WardrobeAdd() {
               <Upload className="h-10 w-10 text-muted-foreground mb-3" />
               <p className="text-sm font-medium">이미지를 드래그하거나 클릭하여 업로드</p>
               <p className="text-xs text-muted-foreground mt-1">JPEG, PNG, WEBP · 최대 20MB</p>
+              <p className="text-xs text-muted-foreground mt-1">전신 사진을 올리면 상의·하의·신발을 나눠서 등록해요</p>
             </div>
           )}
           <button

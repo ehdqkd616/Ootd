@@ -35,7 +35,7 @@ export function Header() {
             />
           ) : (
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
-              {user?.name?.[0] ?? user?.email?.[0] ?? 'U'}
+              {user?.name?.[0] ?? user?.loginId?.[0] ?? 'U'}
             </div>
           )}
           <button

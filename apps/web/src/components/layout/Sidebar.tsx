@@ -7,8 +7,10 @@ import {
   UserCircle,
   Sparkles,
   Settings,
+  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAppStore } from '@/stores/app.store';
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
@@ -19,8 +21,12 @@ const navItems = [
   { to: '/settings', icon: Settings, labelKey: 'nav.settings' },
 ];
 
+const adminNavItem = { to: '/admin', icon: ShieldCheck, labelKey: 'nav.admin' };
+
 export function Sidebar() {
   const { t } = useTranslation();
+  const isAdmin = useAppStore((s) => s.user?.isAdmin ?? false);
+  const items = isAdmin ? [...navItems, adminNavItem] : navItems;
 
   return (
     <aside className="flex w-60 flex-col border-r border-border bg-card">
@@ -28,7 +34,7 @@ export function Sidebar() {
         <span className="text-xl font-bold tracking-tight">OOTD</span>
       </div>
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {navItems.map(({ to, icon: Icon, labelKey }) => (
+        {items.map(({ to, icon: Icon, labelKey }) => (
           <NavLink
             key={to}
             to={to}

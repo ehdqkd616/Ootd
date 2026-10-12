@@ -2,13 +2,10 @@ import { prisma, Prisma } from '@ootd/db';
 import type { CreateOutfitRequest } from '@ootd/types';
 import { randomUUID } from 'crypto';
 import { Redis } from 'ioredis';
-import Anthropic from '@anthropic-ai/sdk';
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const memoryJobStore = new Map<string, string>();
 
-const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6380', {
+const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6381', {
   enableOfflineQueue: false,
   maxRetriesPerRequest: 0,
   retryStrategy: () => null,
@@ -104,117 +101,93 @@ async function urlToReplicateFile(dataUri: string): Promise<Blob> {
   return new Blob([binary], { type: mime });
 }
 
-// ─── 가상 피팅 (IDM-VTON) - 여러 아이템을 순차적으로 입힘 ────────────────────
-// 순서: outer/dress(1) → top(2) → bottom(3). shoes/accessory는 스킵.
-const TRYON_ORDER: Record<string, number> = { dress: 1, outer: 2, top: 3, bottom: 4 };
+// ─── 착장 샷 생성 (Seedream 4.5, 다중 참고 이미지) ─────────────────────────────
+// 아바타 사진(얼굴·체형) + 옷 사진들을 참고 이미지로 넘겨 "이 사람이 이 옷들을 입은 전신 사진"을 새로 만든다.
+// IDM-VTON(사진 속 옷만 교체)은 증명사진처럼 상반신만 있는 아바타에 바지·신발을 입힐 수 없고,
+// 텍스트만 보고 그리는 Pollinations는 본인·실제 옷과 무관한 이미지가 나와서 둘 다 쓰지 않는다.
+const OUTFIT_SHOT_MODEL = 'bytedance/seedream-4.5';
+const MAX_GARMENTS = 6;
+
+// 참고 이미지 순서 = 프롬프트에서 언급하는 순서 (겉에서 안으로, 위에서 아래로)
+const GARMENT_ORDER: Record<string, number> = { outer: 1, dress: 2, top: 3, bottom: 4, shoes: 5, accessory: 6, etc: 7 };
+const GARMENT_LABEL: Record<string, string> = {
+  outer: 'outerwear', dress: 'dress', top: 'top', bottom: 'bottoms', shoes: 'shoes', accessory: 'accessory', etc: 'item',
+};
+
+const POSE_PROMPTS: Record<string, string> = {
+  front: 'front view, facing the camera',
+  side: 'side profile view, body turned 90 degrees to the left',
+  back: 'back view, facing away from the camera, showing the back of the outfit',
+};
 
 interface GarmentItem {
   originalImageUrl: string | null;
   name: string | null;
   category: string | null;
+  colorTags: string[];
 }
 
-async function virtualTryOnChained(
-  avatarUrl: string,
+function describePerson(bodyParams: Record<string, unknown> | null) {
+  const parts: string[] = [];
+  if (bodyParams?.height) parts.push(`${bodyParams.height}cm tall`);
+  if (bodyParams?.bodyType === 'slim') parts.push('slim build');
+  else if (bodyParams?.bodyType === 'plus') parts.push('plus-size build');
+  else if (bodyParams?.bodyType) parts.push('average build');
+  const who = bodyParams?.gender === 'female' ? 'woman' : bodyParams?.gender === 'male' ? 'man' : 'person';
+  return parts.length ? `a ${parts.join(', ')} ${who}` : `a ${who}`;
+}
+
+function buildOutfitShotPrompt(garments: GarmentItem[], pose: string, bodyParams: Record<string, unknown> | null) {
+  const wearing = garments
+    .map((g, i) => {
+      const label = GARMENT_LABEL[g.category ?? 'etc'] ?? 'item';
+      const desc = [g.name, g.colorTags.length ? `(${g.colorTags.join('/')})` : ''].filter(Boolean).join(' ');
+      return `the ${label}${desc ? ` "${desc}"` : ''} from image ${i + 2}`;
+    })
+    .join(', ');
+  return (
+    `Photorealistic full-body fashion photo of the person in image 1. Keep their face, hairstyle and identity exactly the same. ` +
+    `They are ${describePerson(bodyParams)}. They are wearing exactly these garments: ${wearing}. ` +
+    `Reproduce each garment faithfully (color, print, logo, fit, fabric, details). Do not add any other clothing or accessories. ` +
+    `Natural relaxed standing pose, ${POSE_PROMPTS[pose] ?? POSE_PROMPTS.front}, entire body from head to feet visible in frame, ` +
+    `clean light seamless studio background, soft natural lighting, sharp focus, high detail, editorial lookbook style.`
+  );
+}
+
+async function generateOutfitShot(
+  personImageUrl: string,
   items: GarmentItem[],
-): Promise<string | null> {
-  const garments = items
-    .filter((i) => i.originalImageUrl && i.category && TRYON_ORDER[i.category] !== undefined)
-    .sort((a, b) => (TRYON_ORDER[a.category!] ?? 9) - (TRYON_ORDER[b.category!] ?? 9))
-    .slice(0, 3); // 최대 3개 (비용 제한)
-
-  if (garments.length === 0) return null;
-
-  try {
-    const Replicate = (await import('replicate')).default;
-    const replicate = new Replicate({ auth: process.env.REPLICATE_API_KEY });
-
-    let currentHumanImg: string = avatarUrl;
-    let lastResultUrl: string | null = null;
-
-    for (const garment of garments) {
-      // base64 data URI인 경우 Replicate FileOutput으로 업로드
-      const humanImgInput = currentHumanImg.startsWith('data:')
-        ? await urlToReplicateFile(currentHumanImg)
-        : currentHumanImg;
-      const garmImgInput = garment.originalImageUrl!.startsWith('data:')
-        ? await urlToReplicateFile(garment.originalImageUrl!)
-        : garment.originalImageUrl!;
-
-      console.log(`[IDM-VTON] ${garment.category} (${garment.name}) 적용 중...`);
-      const output = await replicate.run(
-        'cuuupid/idm-vton:5c6712b51ff45af53bba0e88d4a5ec33fad0a85de32462e3d3cbcf51b53d5d37',
-        {
-          input: {
-            human_img: humanImgInput,
-            garm_img: garmImgInput,
-            garment_des: garment.name ?? garment.category ?? 'clothing',
-            is_checked: true,
-            is_checked_crop: false,
-            denoise_steps: 30,
-            seed: Math.floor(Math.random() * 10000),
-          },
-        },
-      ) as string[] | string;
-
-      const resultUrl = Array.isArray(output) ? output[0] : output;
-      if (!resultUrl) throw new Error(`${garment.category} 결과 URL 없음`);
-
-      currentHumanImg = resultUrl;
-      lastResultUrl = resultUrl;
-      console.log(`[IDM-VTON] ${garment.category} 완료:`, resultUrl);
-    }
-
-    console.log('[IDM-VTON] 전체 피팅 완료');
-    return await fetchImageBase64(lastResultUrl!, 2);
-  } catch (err) {
-    console.error('[IDM-VTON 실패]', err instanceof Error ? err.stack : err);
-    return null;
-  }
-}
-
-// ─── Pollinations 이미지 생성 (측면/후면 + 폴백) ─────────────────────────────
-const POSE_LABELS: Record<string, string> = {
-  front: 'front view, facing the camera directly',
-  side: 'side profile view, facing left',
-  back: 'back view, facing away from camera',
-};
-
-function buildPollinationsPrompt(
-  outfitDescription: string,
-  pose: string,
-  bodyParams: Record<string, unknown> | null,
-): string {
-  const poseLabel = POSE_LABELS[pose] ?? 'front view';
-
-  // 아바타 신체 정보를 프롬프트에 반영
-  const physicalParts: string[] = [];
-  if (bodyParams) {
-    if (bodyParams.gender === 'female') physicalParts.push('female');
-    else if (bodyParams.gender === 'male') physicalParts.push('male');
-    if (bodyParams.height) physicalParts.push(`${bodyParams.height}cm tall`);
-    if (bodyParams.bodyType === 'slim') physicalParts.push('slim build');
-    else if (bodyParams.bodyType === 'plus') physicalParts.push('plus size build');
-    if (bodyParams.skinTone === 'light') physicalParts.push('fair skin');
-    else if (bodyParams.skinTone === 'dark') physicalParts.push('dark skin');
-    else if (bodyParams.skinTone === 'medium') physicalParts.push('medium skin tone');
-  }
-  const personDesc = physicalParts.length > 0
-    ? `a ${physicalParts.join(', ')} person`
-    : 'a fashion model';
-
-  return `Professional fashion editorial photo, full body shot, ${poseLabel}, ${personDesc} wearing ${outfitDescription}, plain white studio background, soft studio lighting, high quality, no text`;
-}
-
-async function generatePollinationsImage(
-  outfitDescription: string,
   pose: string,
   bodyParams: Record<string, unknown> | null,
 ): Promise<string> {
-  const prompt = buildPollinationsPrompt(outfitDescription, pose, bodyParams);
-  const seed = Math.floor(Math.random() * 1_000_000);
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=1024&nologo=true&seed=${seed}&model=flux`;
-  return fetchImageBase64(url);
+  const garments = items
+    .filter((i) => i.originalImageUrl)
+    .sort((a, b) => (GARMENT_ORDER[a.category ?? 'etc'] ?? 9) - (GARMENT_ORDER[b.category ?? 'etc'] ?? 9))
+    .slice(0, MAX_GARMENTS);
+  if (garments.length === 0) throw new Error('NO_TRYON_GARMENT');
+
+  const toInput = (url: string) => (url.startsWith('data:') ? urlToReplicateFile(url) : Promise.resolve(url));
+  const imageInput = await Promise.all([personImageUrl, ...garments.map((g) => g.originalImageUrl!)].map(toInput));
+
+  const Replicate = (await import('replicate')).default;
+  // replicate 1.x는 기본으로 결과를 FileOutput(스트림)으로 준다 — 다운로드에 URL 문자열이 필요하다
+  const replicate = new Replicate({ auth: process.env.REPLICATE_API_KEY, useFileOutput: false });
+
+  console.log(`[outfit-shot] ${pose} 생성 중 (옷 ${garments.length}개)...`);
+  const t0 = Date.now();
+  const output = (await replicate.run(OUTFIT_SHOT_MODEL, {
+    input: {
+      prompt: buildOutfitShotPrompt(garments, pose, bodyParams),
+      image_input: imageInput,
+      aspect_ratio: '3:4',
+      size: '2K',
+      max_images: 1,
+    },
+  })) as string[] | string;
+  const url = Array.isArray(output) ? output[0] : output;
+  if (!url) throw new Error('결과 URL 없음');
+  console.log(`[outfit-shot] ${pose} 완료 (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+  return fetchImageBase64(url, 2);
 }
 
 // ─── 메인: 이미지 생성 큐 ────────────────────────────────────────────────────
@@ -243,71 +216,26 @@ export async function enqueueImageGeneration(
     prisma.avatar.findFirst({ where: { id: resolvedAvatarId! } }),
   ]);
   if (!outfit) throw new Error('NOT_FOUND');
+  if (!avatar) throw new Error('NO_AVATAR');
 
-  const bodyParams = (avatar?.bodyParams ?? null) as Record<string, unknown> | null;
+  const bodyParams = (avatar.bodyParams ?? null) as Record<string, unknown> | null;
+  const garments = outfit.outfitItems.map((oi) => oi.clothingItem);
+  // 얼굴·체형 참고용 — 전신 사진이 있으면 그걸, 없으면 원본 사진
+  const personImageUrl = avatar.fullBodyUrl ?? avatar.sourceImageUrl;
 
-  // 의류 목록을 영어로 설명 (Pollinations + 가상피팅 설명 공용)
-  const itemList = outfit.outfitItems
-    .map((oi) => {
-      const item = oi.clothingItem;
-      const parts = [item.name ?? '의류', item.category ?? ''];
-      if (item.colorTags?.length) parts.push(item.colorTags.join('/'));
-      return parts.filter(Boolean).join(', ');
-    })
-    .join(' / ');
-
-  const descMsg = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 150,
-    messages: [{
-      role: 'user',
-      content: `Describe this outfit in English concisely (under 35 words), focusing on specific colors and garment types. Outfit: ${itemList}`,
-    }],
-  });
-  const outfitDescription = descMsg.content[0].type === 'text'
-    ? descMsg.content[0].text.trim()
-    : 'stylish outfit';
-
-  // 포즈별 순차 생성
+  // 포즈별 순차 생성 (Replicate 잔액이 적으면 동시 요청이 1개로 제한된다)
   for (const pose of poses) {
     let imageUrl: string;
-    let model = 'pollinations-flux';
-
-    if (pose === 'front' && avatar) {
-      // 아이템 전체를 순서대로 입히는 체인 방식 (outer/top → bottom)
-      const garments = outfit.outfitItems.map((oi) => oi.clothingItem);
-
-      // 의류 구성에 따라 최적 아바타 사진 선택
-      const hasUpper = garments.some((g) => ['top', 'outer', 'dress'].includes(g.category ?? ''));
-      const hasLower = garments.some((g) => g.category === 'bottom');
-      let avatarPhotoUrl: string;
-      if (hasUpper && hasLower) {
-        // 상하의 모두 있으면 전신 사진 사용
-        avatarPhotoUrl = avatar.fullBodyUrl ?? avatar.sourceImageUrl;
-      } else if (hasLower) {
-        // 하의만 있으면 하반신/전신 사진
-        avatarPhotoUrl = avatar.lowerBodyUrl ?? avatar.fullBodyUrl ?? avatar.sourceImageUrl;
-      } else {
-        // 상의/아우터만 있으면 상반신/전신 사진
-        avatarPhotoUrl = avatar.upperBodyUrl ?? avatar.fullBodyUrl ?? avatar.sourceImageUrl;
-      }
-
-      const tryOnResult = await virtualTryOnChained(avatarPhotoUrl, garments);
-
-      if (tryOnResult) {
-        imageUrl = tryOnResult;
-        model = 'idm-vton';
-      } else {
-        console.log('[IDM-VTON] 폴백 → Pollinations');
-        imageUrl = await generatePollinationsImage(outfitDescription, pose, bodyParams);
-      }
-    } else {
-      // 측면/후면: 아바타 신체 정보 기반 Pollinations 생성
-      imageUrl = await generatePollinationsImage(outfitDescription, pose, bodyParams);
+    try {
+      imageUrl = await generateOutfitShot(personImageUrl, garments, pose, bodyParams);
+    } catch (err) {
+      if (err instanceof Error && err.message === 'NO_TRYON_GARMENT') throw err;
+      console.error('[outfit-shot 실패]', err instanceof Error ? err.stack : err);
+      throw new Error('TRYON_FAILED');
     }
 
     await prisma.generatedImage.create({
-      data: { outfitId, avatarId: resolvedAvatarId!, pose, imageUrl, generationParams: { jobId, model } },
+      data: { outfitId, avatarId: resolvedAvatarId!, pose, imageUrl, generationParams: { jobId, model: OUTFIT_SHOT_MODEL } },
     });
   }
 

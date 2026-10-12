@@ -13,6 +13,7 @@ export default defineConfig({
     port: 5175,
     proxy: {
       '/api/v1/auth': { target: 'http://localhost:3001', changeOrigin: true },
+      '/api/v1/admin': { target: 'http://localhost:3001', changeOrigin: true },
       '/api/v1/wardrobe': { target: 'http://localhost:3002', changeOrigin: true },
       '/api/v1/outfits': { target: 'http://localhost:3003', changeOrigin: true },
       '/api/v1/jobs': { target: 'http://localhost:3003', changeOrigin: true },

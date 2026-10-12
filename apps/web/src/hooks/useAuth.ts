@@ -18,13 +18,9 @@ export function useAuth() {
     },
   });
 
+  // 가입해도 바로 로그인되지 않는다 — 관리자 승인 후 로그인 (Register 페이지가 안내 화면을 띄운다)
   const registerMutation = useMutation({
     mutationFn: (data: RegisterRequest) => api.auth.register(data),
-    onSuccess: ({ user, accessToken }) => {
-      setAuth(user, accessToken);
-      api.setAccessToken(accessToken);
-      navigate('/dashboard');
-    },
   });
 
   const logoutMutation = useMutation({
@@ -47,6 +43,7 @@ export function useAuth() {
     logout: logoutMutation.mutate,
     isLoggingIn: loginMutation.isPending,
     isRegistering: registerMutation.isPending,
+    isRegistered: registerMutation.isSuccess,
     loginError: loginMutation.error,
     registerError: registerMutation.error,
   };

@@ -81,6 +81,8 @@ outfitRouter.post('/:id/generate', async (req: AuthRequest, res: Response) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[generate] error:', msg);
     if (msg === 'NO_AVATAR') return res.status(400).json({ message: '아바타가 없습니다. 아바타 페이지에서 먼저 아바타를 추가해주세요.' });
+    if (msg === 'NO_TRYON_GARMENT') return res.status(400).json({ message: '코디에 사진이 있는 옷이 없어요. 옷을 하나 이상 넣어주세요.' });
+    if (msg === 'TRYON_FAILED') return res.status(502).json({ message: '착장 이미지 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.' });
     res.status(500).json({ message: 'AI 이미지 생성 요청 실패', detail: msg });
   }
 });

@@ -1,10 +1,33 @@
-version: '3.9'
+name: ootd
+
+# 호스트 포트는 모두 127.0.0.1에만 바인딩 — 외부 노출은 Caddy(ootd.hotgarlic.dedyn.io → 3200)가 담당
+# 5433/6380은 같은 호스트의 다른 프로젝트가 쓰고 있어서 5434/6381 사용
+
+x-node-service: &node-service
+  build:
+    context: .
+    dockerfile: infrastructure/docker/Dockerfile
+    target: node-service
+  image: ootd-node-service
+  env_file: .env
+  restart: unless-stopped
+  depends_on:
+    db-push:
+      condition: service_completed_successfully
+    redis:
+      condition: service_healthy
+
+x-container-env: &container-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://ootd_user:ootd_password@postgres:5432/ootd_db
+  REDIS_URL: redis://redis:6379
 
 services:
   # ===== Infrastructure =====
   postgres:
     image: pgvector/pgvector:pg16
     container_name: ootd-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ootd_user
       POSTGRES_PASSWORD: ootd_password
@@ -13,7 +36,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/docker/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - '5433:5432'
+      - '127.0.0.1:5434:5432'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ootd_user -d ootd_db']
       interval: 10s
@@ -23,24 +46,39 @@ services:
   redis:
     image: redis:7-alpine
     container_name: ootd-redis
+    restart: unless-stopped
     volumes:
       - redis_data:/data
     ports:
-      - '6380:6379'
+      - '127.0.0.1:6381:6379'
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ===== API Gateway (Nginx) =====
+  # 마이그레이션 파일이 없으므로 기동 시 Prisma 스키마를 DB에 동기화 (원샷)
+  db-push:
+    <<: *node-service
+    container_name: ootd-db-push
+    restart: 'no'
+    working_dir: /app/packages/db
+    command: ['pnpm', 'exec', 'prisma', 'db', 'push', '--skip-generate']
+    environment: *container-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ===== API Gateway + Web (Nginx) =====
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      target: gateway
     container_name: ootd-nginx
+    restart: unless-stopped
     ports:
-      - '3200:80'
-    volumes:
-      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - '127.0.0.1:3200:80'
     depends_on:
       - auth-service
       - wardrobe-service
@@ -48,52 +86,43 @@ services:
 
   # ===== Node.js Services =====
   auth-service:
-    build:
-      context: ./services/auth
-      dockerfile: Dockerfile
+    <<: *node-service
     container_name: ootd-auth
-    env_file: .env
+    working_dir: /app/services/auth
     environment:
-      - PORT=3001
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      <<: *container-env
+      PORT: 3001
 
   wardrobe-service:
-    build:
-      context: ./services/wardrobe
-      dockerfile: Dockerfile
+    <<: *node-service
     container_name: ootd-wardrobe
-    env_file: .env
+    working_dir: /app/services/wardrobe
     environment:
-      - PORT=3002
-    depends_on:
-      postgres:
-        condition: service_healthy
+      <<: *container-env
+      PORT: 3002
 
   outfit-service:
-    build:
-      context: ./services/outfit
-      dockerfile: Dockerfile
+    <<: *node-service
     container_name: ootd-outfit
-    env_file: .env
+    working_dir: /app/services/outfit
     environment:
-      - PORT=3003
-    depends_on:
-      postgres:
-        condition: service_healthy
+      <<: *container-env
+      PORT: 3003
 
   # ===== Python AI Services =====
+  # 웹 프론트엔드는 아직 호출하지 않으며 torch 등 이미지가 매우 크므로 기본 기동에서 제외
+  # 필요 시: docker compose --profile ai up -d --build
   ai-orchestration:
+    profiles: ['ai']
     build:
       context: ./services/ai-orchestration
       dockerfile: Dockerfile
     container_name: ootd-ai-orchestration
+    restart: unless-stopped
     env_file: .env
     environment:
-      - PORT=8001
+      <<: *container-env
+      PORT: 8001
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,25 +130,31 @@ services:
         condition: service_healthy
 
   recommendation:
+    profiles: ['ai']
     build:
       context: ./services/recommendation
       dockerfile: Dockerfile
     container_name: ootd-recommendation
+    restart: unless-stopped
     env_file: .env
     environment:
-      - PORT=8002
+      <<: *container-env
+      PORT: 8002
     depends_on:
       postgres:
         condition: service_healthy
 
   avatar-service:
+    profiles: ['ai']
     build:
       context: ./services/avatar
       dockerfile: Dockerfile
     container_name: ootd-avatar
+    restart: unless-stopped
     env_file: .env
     environment:
-      - PORT=8003
+      <<: *container-env
+      PORT: 8003
     depends_on:
       postgres:
         condition: service_healthy

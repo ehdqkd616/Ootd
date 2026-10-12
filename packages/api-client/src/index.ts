@@ -3,6 +3,8 @@ import type {
   AuthResponse,
   LoginRequest,
   RegisterRequest,
+  RegisterResponse,
+  User,
   ClothingItem,
   CreateClothingItemRequest,
   WardrobeFilter,
@@ -21,6 +23,8 @@ import type {
 export class OotdApiClient {
   http: AxiosInstance;
   private accessToken: string | null = null;
+  /** refresh까지 실패해 세션이 끝났을 때 (승인 취소·계정 삭제 포함) */
+  onAuthExpired?: () => void;
 
   constructor(baseURL: string) {
     this.http = axios.create({ baseURL, withCredentials: true });
@@ -36,7 +40,9 @@ export class OotdApiClient {
       (res) => res,
       async (err) => {
         const original = err.config as AxiosRequestConfig & { _retry?: boolean };
-        if (err.response?.status === 401 && !original._retry) {
+        // /auth/* 는 제외 — 로그인 실패나 refresh 자체의 401로 refresh를 반복하지 않도록
+        const isAuthCall = original?.url?.startsWith('/auth/');
+        if (err.response?.status === 401 && !original._retry && !isAuthCall) {
           original._retry = true;
           try {
             const { data } = await this.http.post<AuthResponse>('/auth/refresh');
@@ -44,6 +50,7 @@ export class OotdApiClient {
             return this.http(original);
           } catch {
             this.clearAccessToken();
+            this.onAuthExpired?.();
           }
         }
         return Promise.reject(err);
@@ -62,7 +69,7 @@ export class OotdApiClient {
   // ===== Auth =====
   auth = {
     register: (body: RegisterRequest) =>
-      this.http.post<AuthResponse>('/auth/register', body).then((r) => r.data),
+      this.http.post<RegisterResponse>('/auth/register', body).then((r) => r.data),
 
     login: (body: LoginRequest) =>
       this.http.post<AuthResponse>('/auth/login', body).then((r) => r.data),
@@ -71,17 +78,20 @@ export class OotdApiClient {
 
     refresh: () =>
       this.http.post<AuthResponse>('/auth/refresh').then((r) => r.data),
+  };
 
-    socialLogin: (provider: string, code: string, redirectUri: string) =>
-      this.http
-        .post<AuthResponse>(`/auth/social/${provider}`, { code, redirectUri })
-        .then((r) => r.data),
+  // ===== Admin (회원 승인 관리) =====
+  admin = {
+    listUsers: () => this.http.get<User[]>('/admin/users').then((r) => r.data),
 
-    forgotPassword: (email: string) =>
-      this.http.post('/auth/forgot-password', { email }).then((r) => r.data),
+    approve: (id: string) =>
+      this.http.post<User>(`/admin/users/${id}/approve`).then((r) => r.data),
 
-    resetPassword: (token: string, password: string) =>
-      this.http.post('/auth/reset-password', { token, password }).then((r) => r.data),
+    unapprove: (id: string) =>
+      this.http.post<User>(`/admin/users/${id}/unapprove`).then((r) => r.data),
+
+    deleteUser: (id: string) =>
+      this.http.delete<{ deleted: string }>(`/admin/users/${id}`).then((r) => r.data),
   };
 
   // ===== Wardrobe =====
@@ -94,9 +104,10 @@ export class OotdApiClient {
     get: (id: string) =>
       this.http.get<ClothingItem>(`/wardrobe/${id}`).then((r) => r.data),
 
+    // 전신 사진은 상의·하의 등 여러 아이템으로 나뉘어 등록된다
     upload: (formData: FormData, meta?: CreateClothingItemRequest) =>
       this.http
-        .post<ClothingItem>('/wardrobe', formData, { params: meta })
+        .post<{ items: ClothingItem[] }>('/wardrobe', formData, { params: meta, timeout: 120_000 })
         .then((r) => r.data),
 
     importUrl: (sourceUrl: string, meta?: CreateClothingItemRequest) =>

@@ -162,7 +162,8 @@ avatarRouter.post('/:id/generate-fullbody', async (req: AuthRequest, res: Respon
 
     console.log('[InstantID] 전신 아바타 생성 시작...');
     const Replicate = (await import('replicate')).default;
-    const replicate = new Replicate({ auth: process.env.REPLICATE_API_KEY });
+    // replicate 1.x는 기본으로 결과를 FileOutput(스트림)으로 준다 — URL 문자열로 받는다
+    const replicate = new Replicate({ auth: process.env.REPLICATE_API_KEY, useFileOutput: false });
 
     const output = await replicate.run(
       'zsxkib/instant-id:c98b2e7a196828d00955767813b81fc05c5c9b294c670c6d147d545fed4ceecf',

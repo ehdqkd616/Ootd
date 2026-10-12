@@ -83,7 +83,7 @@ export function OutfitFitting() {
 
         {generateMutation.isPending && (
           <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-            아바타에 옷을 입히는 중입니다. 약 1~2분 소요됩니다...
+            아바타 사진과 옷 사진으로 착장 샷을 만드는 중입니다. 1분 정도 걸려요...
           </div>
         )}
 
