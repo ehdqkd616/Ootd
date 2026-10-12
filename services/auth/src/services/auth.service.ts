@@ -66,29 +66,36 @@ export async function findById(userId: string) {
 }
 
 /**
- * .env의 ADMIN_LOGIN_ID/ADMIN_PASSWORD로 승인된 관리자 계정을 만든다.
- * 가입만으로는 모든 계정이 승인 대기라서, DB 콘솔 없이 첫 관리자를 만드는 유일한 방법.
- * 이미 있으면 관리자·승인 상태만 보장하고 비밀번호는 건드리지 않는다.
+ * 공통 관리자 계정 admin을 .env의 ADMIN_PASSWORD로 맞춘다 (모든 프로젝트 공통).
+ * 없으면 만들고, 있으면 관리자·승인 상태와 비밀번호를 .env 값으로 되돌린다 — 비밀번호는 .env가 기준.
  */
-export async function bootstrapAdmin() {
-  const loginId = process.env.ADMIN_LOGIN_ID?.trim().toLowerCase();
-  const password = process.env.ADMIN_PASSWORD;
-  if (!loginId || !password) return;
+export const ADMIN_LOGIN_ID = 'admin';
 
-  const existing = await prisma.user.findUnique({ where: { loginId } });
+export async function bootstrapAdmin() {
+  const password = process.env.ADMIN_PASSWORD;
+  if (!password) return;
+
+  const existing = await prisma.user.findUnique({ where: { loginId: ADMIN_LOGIN_ID } });
   if (existing) {
-    if (!existing.isAdmin || !existing.isApproved || existing.deletedAt) {
-      await prisma.user.update({
-        where: { id: existing.id },
-        data: { isAdmin: true, isApproved: true, approvedAt: existing.approvedAt ?? new Date(), deletedAt: null },
-      });
-    }
+    const samePassword = existing.passwordHash ? await bcrypt.compare(password, existing.passwordHash) : false;
+    if (samePassword && existing.isAdmin && existing.isApproved && !existing.deletedAt) return;
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        isAdmin: true,
+        isApproved: true,
+        approvedAt: existing.approvedAt ?? new Date(),
+        deletedAt: null,
+        ...(samePassword ? {} : { passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS) }),
+      },
+    });
+    console.log(`Admin account "${ADMIN_LOGIN_ID}" synced`);
     return;
   }
 
   await prisma.user.create({
     data: {
-      loginId,
+      loginId: ADMIN_LOGIN_ID,
       passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
       name: '관리자',
       isAdmin: true,
@@ -96,5 +103,5 @@ export async function bootstrapAdmin() {
       approvedAt: new Date(),
     },
   });
-  console.log(`Admin account "${loginId}" created`);
+  console.log(`Admin account "${ADMIN_LOGIN_ID}" created`);
 }

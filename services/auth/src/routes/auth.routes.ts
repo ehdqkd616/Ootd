@@ -10,14 +10,15 @@ export const authRouter = Router();
 
 const authLimiter = rateLimit({ windowMs: 60_000, max: 10 });
 
-const LOGIN_ID = /^[a-z][a-z0-9]{3,19}$/;
+// 아이디: 영문·숫자·_·- 3~32자 (모든 프로젝트 공통 규칙). 대소문자는 구분하지 않도록 소문자로 저장
+const LOGIN_ID = /^[a-z0-9_-]{3,32}$/;
 
 const registerSchema = z.object({
   loginId: z
     .string()
     .trim()
     .toLowerCase()
-    .regex(LOGIN_ID, '아이디는 영문 소문자로 시작하는 4~20자 영문·숫자입니다.'),
+    .regex(LOGIN_ID, '아이디는 영문, 숫자, _, - 조합 3~32자여야 합니다.'),
   password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다.').max(72),
   name: z.string().trim().min(1, '이름을 입력하세요.').max(100),
 });
