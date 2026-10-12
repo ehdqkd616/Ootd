@@ -96,6 +96,9 @@ export function Admin() {
                   {u.name && <span className="ml-2 text-sm font-normal text-muted-foreground">{u.name}</span>}
                   {u.isAdmin && <span className="ml-2 text-xs text-primary">관리자</span>}
                 </p>
+                {u.signupNote && (
+                  <p className="whitespace-pre-wrap text-xs text-muted-foreground">메모: {u.signupNote}</p>
+                )}
                 <p className="truncate text-xs text-muted-foreground">
                   <span className={u.isApproved ? '' : 'font-medium text-amber-600 dark:text-amber-400'}>
                     {u.isApproved ? '승인됨' : '승인 대기'}

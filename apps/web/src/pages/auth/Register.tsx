@@ -5,7 +5,8 @@ import { errorMessage } from '@/lib/api';
 
 export function Register() {
   const { register, isRegistering, isRegistered, registerError } = useAuth();
-  const [form, setForm] = useState({ name: '', loginId: '', password: '', passwordConfirm: '' });
+  const [form, setForm] = useState({ name: '', loginId: '', password: '', passwordConfirm: '', signupNote: '' });
+  const [agree, setAgree] = useState({ terms: false, privacy: false });
   const [localError, setLocalError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -14,11 +15,22 @@ export function Register() {
       setLocalError('비밀번호가 일치하지 않습니다.');
       return;
     }
+    if (!agree.terms || !agree.privacy) {
+      setLocalError('이용약관과 개인정보 처리방침에 동의해 주세요.');
+      return;
+    }
     setLocalError(null);
-    register({ name: form.name, loginId: form.loginId, password: form.password });
+    register({
+      name: form.name,
+      loginId: form.loginId,
+      password: form.password,
+      signupNote: form.signupNote.trim() || undefined,
+      agreeTerms: true,
+      agreePrivacy: true,
+    });
   };
 
-  const update = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const update = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
   if (isRegistered) {
@@ -85,9 +97,40 @@ export function Register() {
               />
             </div>
           ))}
+          <div className="space-y-1">
+            <label className="text-sm font-medium">
+              가입 메모 <span className="font-normal text-muted-foreground">(선택) — 사용 목적 등을 남기면 승인이 빨라요</span>
+            </label>
+            <textarea
+              rows={2}
+              maxLength={1000}
+              value={form.signupNote}
+              onChange={update('signupNote')}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <details className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground">이용약관 · 개인정보 처리방침 보기</summary>
+            <p className="mt-2">
+              <b>이용약관</b> — 승인된 회원에게 옷장 관리·코디 추천·가상 피팅 기능을 제공합니다. 권리가 없는 사진을 올리거나 불법적인
+              목적으로 사용할 수 없고, 남용 시 이용이 정지될 수 있습니다.
+            </p>
+            <p className="mt-2">
+              <b>개인정보 처리방침</b> — 수집 항목: 아이디, 이름, 가입 메모, 접속 기록, 올린 옷·아바타 사진. 이용 목적: 회원 관리와
+              서비스 제공. 탈퇴를 원하면 관리자에게 요청하세요.
+            </p>
+          </details>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={agree.terms} onChange={(e) => setAgree({ ...agree, terms: e.target.checked })} />
+            이용약관에 동의합니다 (필수)
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={agree.privacy} onChange={(e) => setAgree({ ...agree, privacy: e.target.checked })} />
+            개인정보 수집·이용에 동의합니다 (필수)
+          </label>
           <button
             type="submit"
-            disabled={isRegistering}
+            disabled={isRegistering || !agree.terms || !agree.privacy}
             className="w-full rounded-lg bg-primary py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {isRegistering ? '가입 중...' : '가입 신청'}

@@ -4,6 +4,7 @@ export interface User {
   loginId: string;
   email: string | null;
   name: string | null;
+  signupNote: string | null;
   profileImageUrl: string | null;
   isVerified: boolean;
   provider: 'email' | 'google' | 'kakao' | 'apple';
@@ -23,6 +24,9 @@ export interface RegisterRequest {
   loginId: string;
   password: string;
   name: string;
+  signupNote?: string;
+  agreeTerms: boolean;
+  agreePrivacy: boolean;
 }
 
 // 가입만 되고 토큰은 발급되지 않는다 — 관리자 승인 후 로그인

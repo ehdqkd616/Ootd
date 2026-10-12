@@ -21,6 +21,9 @@ const registerSchema = z.object({
     .regex(LOGIN_ID, '아이디는 영문, 숫자, _, - 조합 3~32자여야 합니다.'),
   password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다.').max(72),
   name: z.string().trim().min(1, '이름을 입력하세요.').max(100),
+  signupNote: z.string().trim().max(1000).optional(),
+  agreeTerms: z.literal(true, { errorMap: () => ({ message: '이용약관과 개인정보 처리방침에 동의해 주세요.' }) }),
+  agreePrivacy: z.literal(true, { errorMap: () => ({ message: '이용약관과 개인정보 처리방침에 동의해 주세요.' }) }),
 });
 
 const loginSchema = z.object({
@@ -43,11 +46,11 @@ authRouter.post('/register', authLimiter, async (req: Request, res: Response) =>
   }
 
   try {
-    const { user } = await authService.register(parsed.data.loginId, parsed.data.password, parsed.data.name);
+    const { user } = await authService.register(parsed.data.loginId, parsed.data.password, parsed.data.name, parsed.data.signupNote);
     // 관리자 승인 전에는 로그인할 수 없으므로 토큰·쿠키를 발급하지 않는다.
     res.status(201).json({ user, pendingApproval: true });
     // 알림 메일은 응답과 분리해서 보낸다 — SMTP가 느리거나 실패해도 가입은 그대로 성공.
-    void sendSignupNotification({ loginId: user.loginId, name: user.name, createdAt: new Date(user.createdAt) });
+    void sendSignupNotification({ loginId: user.loginId, name: user.name, note: user.signupNote, createdAt: new Date(user.createdAt) });
   } catch (err: unknown) {
     if (err instanceof Error && err.message === 'LOGIN_ID_EXISTS') {
       return res.status(409).json({ message: '이미 사용 중인 아이디입니다.', code: 'LOGIN_ID_EXISTS' });

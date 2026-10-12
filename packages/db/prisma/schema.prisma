@@ -11,12 +11,13 @@ datasource db {
 
 model User {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  loginId         String    @unique @map("login_id") @db.VarChar(20)
+  loginId         String    @unique @map("login_id") @db.VarChar(32)
   email           String?   @unique @db.VarChar(255)
   passwordHash    String?   @map("password_hash") @db.VarChar(255)
   provider        String    @default("email") @db.VarChar(50)
   providerId      String?   @map("provider_id") @db.VarChar(255)
   name            String?   @db.VarChar(100)
+  signupNote      String?   @map("signup_note") // 가입 메모 (선택)
   profileImageUrl String?   @map("profile_image_url")
   isVerified      Boolean   @default(false) @map("is_verified")
   isApproved      Boolean   @default(false) @map("is_approved") // false면 관리자 승인 대기 (로그인 불가)

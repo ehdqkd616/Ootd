@@ -13,6 +13,7 @@ const esc = (s: string) =>
 export interface SignupInfo {
   loginId: string;
   name: string | null;
+  note?: string | null;
   createdAt: Date;
 }
 
@@ -51,6 +52,7 @@ export function buildSignupMail(u: SignupInfo, publicWebUrl: string) {
     ['아이디', u.loginId],
     ...(u.name ? [['이름', u.name] as [string, string]] : []),
     ['가입 일시 (한국 시간)', fmtKst(u.createdAt)],
+    ...(u.note ? [['가입 메모', u.note] as [string, string]] : []),
   ];
   // 메일 클라이언트(특히 Gmail/Outlook)는 <style>과 flex를 제대로 지원하지 않아서 테이블 + 인라인 스타일로만 짠다.
   const html = `<!DOCTYPE html>

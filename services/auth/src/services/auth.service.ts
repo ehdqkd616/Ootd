@@ -12,6 +12,7 @@ export function toUserDto(u: DbUser): User {
     loginId: u.loginId,
     email: u.email,
     name: u.name,
+    signupNote: u.signupNote,
     profileImageUrl: u.profileImageUrl,
     isVerified: u.isVerified,
     provider: u.provider as User['provider'],
@@ -28,13 +29,13 @@ function issueTokens(u: DbUser) {
 }
 
 /** 가입만 해두고 토큰은 발급하지 않는다 — 관리자 승인 전에는 로그인할 수 없다. */
-export async function register(loginId: string, password: string, name: string) {
+export async function register(loginId: string, password: string, name: string, signupNote?: string | null) {
   const existing = await prisma.user.findUnique({ where: { loginId } });
   if (existing) throw new Error('LOGIN_ID_EXISTS');
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const user = await prisma.user.create({
-    data: { loginId, passwordHash, name },
+    data: { loginId, passwordHash, name, signupNote: signupNote || null },
   });
 
   return { user: toUserDto(user) };
