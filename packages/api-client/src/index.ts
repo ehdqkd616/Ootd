@@ -173,9 +173,9 @@ export class OotdApiClient {
 
     delete: (id: string) => this.http.delete(`/outfits/${id}`).then((r) => r.data),
 
-    generateImage: (id: string, poses?: string[]) =>
+    generateImage: (id: string, poses?: string[], customPose?: string) =>
       this.http
-        .post<AIJob>(`/outfits/${id}/generate`, { poses })
+        .post<AIJob>(`/outfits/${id}/generate`, { poses, customPose })
         .then((r) => r.data),
 
     getImages: (id: string) =>

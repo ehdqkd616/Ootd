@@ -1,5 +1,6 @@
 import { prisma, Prisma } from '@ootd/db';
 import type { CreateOutfitRequest } from '@ootd/types';
+import Anthropic from '@anthropic-ai/sdk';
 import { randomUUID } from 'crypto';
 import { Redis } from 'ioredis';
 
@@ -114,10 +115,25 @@ const GARMENT_LABEL: Record<string, string> = {
   outer: 'outerwear', dress: 'dress', top: 'top', bottom: 'bottoms', shoes: 'shoes', accessory: 'accessory', etc: 'item',
 };
 
-const POSE_PROMPTS: Record<string, string> = {
-  front: 'front view, facing the camera',
-  side: 'side profile view, body turned 90 degrees to the left',
-  back: 'back view, facing away from the camera, showing the back of the outfit',
+// 웹(@ootd/types)과 같은 값 — 서비스는 컴파일된 JS로도 돌기 때문에 .ts 패키지 런타임 값을 가져오지 않는다
+export const CUSTOM_POSE_ID = 'custom';
+export const MAX_POSES_PER_REQUEST = 4;
+export const MAX_CUSTOM_POSE_LENGTH = 300;
+
+// 포즈 템플릿 id → 이미지 모델용 포즈 묘사 (화면에 보이는 이름·설명은 @ootd/types의 POSE_TEMPLATES)
+export const POSE_PROMPTS: Record<string, string> = {
+  front: 'natural relaxed standing pose, front view, facing the camera, arms resting at the sides',
+  three_quarter: 'standing in a three-quarter view, body angled about 45 degrees to the camera, face turned toward the camera, weight on one leg',
+  side: 'standing in a side profile view, body turned 90 degrees to the left, arms relaxed',
+  back: 'standing in a back view, facing away from the camera, showing the back of the outfit',
+  over_shoulder: 'standing with the back mostly to the camera, looking back over one shoulder toward the camera',
+  walking: 'mid-stride walking toward the camera, one foot stepping forward, arms swinging naturally, candid street-style snap',
+  hands_in_pockets: 'standing casually facing the camera with both hands in the pockets, relaxed shoulders',
+  hand_on_hip: 'confident editorial pose facing the camera, one hand on the hip, weight shifted to one leg',
+  arms_crossed: 'standing facing the camera with arms crossed over the chest, confident expression',
+  leaning_wall: 'leaning one shoulder casually against a plain light wall, legs loosely crossed at the ankles, relaxed posture',
+  sitting: 'sitting on a simple minimal stool with legs crossed, upright posture, facing the camera',
+  crouching: 'crouching down in a low squat, forearms resting on the knees, street fashion editorial pose, facing the camera',
 };
 
 interface GarmentItem {
@@ -137,7 +153,50 @@ function describePerson(bodyParams: Record<string, unknown> | null) {
   return parts.length ? `a ${parts.join(', ')} ${who}` : `a ${who}`;
 }
 
-function buildOutfitShotPrompt(garments: GarmentItem[], pose: string, bodyParams: Record<string, unknown> | null) {
+// ─── 직접 입력한 포즈 → 이미지 모델용 영어 묘사 ─────────────────────────────────
+// 사용자는 한국어로 적는 경우가 대부분이라 Claude로 짧은 영어 포즈 묘사로 바꾼다.
+// 옷을 바꾸라는 요청은 무시하게 한다 (착장은 옷장의 옷으로 고정). 실패하면 원문을 그대로 쓴다.
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const POSE_TRANSLATE_TOOL: Anthropic.Tool = {
+  name: 'pose_description',
+  description: '이미지 생성 모델에 넣을 영어 포즈 묘사를 반환한다.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      pose: {
+        type: 'string',
+        description:
+          'One concise English phrase (max ~40 words) describing body pose, gesture, facial expression, camera angle and, if requested, the background/setting. Never mention clothing.',
+      },
+    },
+    required: ['pose'],
+  },
+};
+
+async function translateCustomPose(text: string): Promise<string> {
+  if (!process.env.ANTHROPIC_API_KEY) return text;
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      system:
+        '사용자가 패션 착장 사진에서 원하는 포즈를 설명합니다. 이를 이미지 생성 모델용 영어 포즈 묘사로 바꾸세요. ' +
+        '자세·손동작·표정·카메라 각도·배경만 묘사하고, 옷이나 액세서리를 바꾸거나 추가하라는 요청, 노출·선정적인 요청은 무시하세요.',
+      tools: [POSE_TRANSLATE_TOOL],
+      tool_choice: { type: 'tool', name: POSE_TRANSLATE_TOOL.name },
+      messages: [{ role: 'user', content: text }],
+    });
+    const toolUse = message.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
+    const pose = (toolUse?.input as { pose?: unknown } | undefined)?.pose;
+    return typeof pose === 'string' && pose.trim() ? pose.trim() : text;
+  } catch (err) {
+    console.error('[outfit-shot] 포즈 번역 실패, 원문 사용:', err instanceof Error ? err.message : err);
+    return text;
+  }
+}
+
+function buildOutfitShotPrompt(garments: GarmentItem[], posePrompt: string, bodyParams: Record<string, unknown> | null) {
   const wearing = garments
     .map((g, i) => {
       const label = GARMENT_LABEL[g.category ?? 'etc'] ?? 'item';
@@ -149,8 +208,8 @@ function buildOutfitShotPrompt(garments: GarmentItem[], pose: string, bodyParams
     `Photorealistic full-body fashion photo of the person in image 1. Keep their face, hairstyle and identity exactly the same. ` +
     `They are ${describePerson(bodyParams)}. They are wearing exactly these garments: ${wearing}. ` +
     `Reproduce each garment faithfully (color, print, logo, fit, fabric, details). Do not add any other clothing or accessories. ` +
-    `Natural relaxed standing pose, ${POSE_PROMPTS[pose] ?? POSE_PROMPTS.front}, entire body from head to feet visible in frame, ` +
-    `clean light seamless studio background, soft natural lighting, sharp focus, high detail, editorial lookbook style.`
+    `Pose: ${posePrompt}. Entire body from head to feet visible in frame, ` +
+    `clean light seamless studio background unless the pose describes another setting, soft natural lighting, sharp focus, high detail, editorial lookbook style.`
   );
 }
 
@@ -158,6 +217,7 @@ async function generateOutfitShot(
   personImageUrl: string,
   items: GarmentItem[],
   pose: string,
+  posePrompt: string,
   bodyParams: Record<string, unknown> | null,
 ): Promise<string> {
   const garments = items
@@ -177,7 +237,7 @@ async function generateOutfitShot(
   const t0 = Date.now();
   const output = (await replicate.run(OUTFIT_SHOT_MODEL, {
     input: {
-      prompt: buildOutfitShotPrompt(garments, pose, bodyParams),
+      prompt: buildOutfitShotPrompt(garments, posePrompt, bodyParams),
       image_input: imageInput,
       aspect_ratio: '3:4',
       size: '2K',
@@ -196,6 +256,7 @@ export async function enqueueImageGeneration(
   avatarId: string | null,
   userId: string,
   poses: string[],
+  customPose?: string,
 ) {
   let resolvedAvatarId = avatarId;
   if (!resolvedAvatarId) {
@@ -223,11 +284,19 @@ export async function enqueueImageGeneration(
   // 얼굴·체형 참고용 — 전신 사진이 있으면 그걸, 없으면 원본 사진
   const personImageUrl = avatar.fullBodyUrl ?? avatar.sourceImageUrl;
 
+  const requests: { pose: string; posePrompt: string; customText?: string }[] = [...new Set(poses)]
+    .filter((p) => Object.hasOwn(POSE_PROMPTS, p))
+    .map((p) => ({ pose: p, posePrompt: POSE_PROMPTS[p] }));
+  if (customPose) {
+    requests.push({ pose: CUSTOM_POSE_ID, posePrompt: await translateCustomPose(customPose), customText: customPose });
+  }
+  if (requests.length === 0) throw new Error('NO_POSE');
+
   // 포즈별 순차 생성 (Replicate 잔액이 적으면 동시 요청이 1개로 제한된다)
-  for (const pose of poses) {
+  for (const { pose, posePrompt, customText } of requests) {
     let imageUrl: string;
     try {
-      imageUrl = await generateOutfitShot(personImageUrl, garments, pose, bodyParams);
+      imageUrl = await generateOutfitShot(personImageUrl, garments, pose, posePrompt, bodyParams);
     } catch (err) {
       if (err instanceof Error && err.message === 'NO_TRYON_GARMENT') throw err;
       console.error('[outfit-shot 실패]', err instanceof Error ? err.stack : err);
@@ -235,7 +304,13 @@ export async function enqueueImageGeneration(
     }
 
     await prisma.generatedImage.create({
-      data: { outfitId, avatarId: resolvedAvatarId!, pose, imageUrl, generationParams: { jobId, model: OUTFIT_SHOT_MODEL } },
+      data: {
+        outfitId,
+        avatarId: resolvedAvatarId!,
+        pose,
+        imageUrl,
+        generationParams: { jobId, model: OUTFIT_SHOT_MODEL, posePrompt, ...(customText ? { customPose: customText } : {}) },
+      },
     });
   }
 

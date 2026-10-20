@@ -144,7 +144,41 @@ export interface CreateOutfitRequest {
 }
 
 // ===== Generated Images =====
-export type Pose = 'front' | 'side' | 'back' | 'sitting';
+// 포즈 템플릿 id 또는 'custom'(사용자가 직접 적은 포즈). 템플릿이 늘어날 수 있어 문자열로 둔다.
+export type Pose = string;
+
+export const CUSTOM_POSE_ID = 'custom';
+export const MAX_POSES_PER_REQUEST = 4;
+export const MAX_CUSTOM_POSE_LENGTH = 300;
+
+export interface PoseTemplate {
+  id: string;
+  label: string;
+  description: string;
+  emoji: string;
+}
+
+// 착장 샷 포즈 템플릿 — 실제 이미지 모델용 영어 프롬프트는 outfit 서비스가 id로 들고 있다
+export const POSE_TEMPLATES: PoseTemplate[] = [
+  { id: 'front', label: '정면', description: '카메라를 보고 자연스럽게 선 기본 포즈', emoji: '🧍' },
+  { id: 'three_quarter', label: '3/4 각도', description: '몸을 살짝 틀어 실루엣이 잘 보이는 각도', emoji: '↗️' },
+  { id: 'side', label: '측면', description: '옆모습으로 핏과 기장 확인', emoji: '➡️' },
+  { id: 'back', label: '뒷모습', description: '뒤태와 등 디테일 확인', emoji: '🔙' },
+  { id: 'over_shoulder', label: '뒤돌아보기', description: '뒤돌아 어깨 너머로 카메라를 보는 포즈', emoji: '👀' },
+  { id: 'walking', label: '걷기', description: '한 발 내딛으며 걷는 스트리트 스냅', emoji: '🚶' },
+  { id: 'hands_in_pockets', label: '주머니에 손', description: '양손을 주머니에 넣은 캐주얼 포즈', emoji: '🫳' },
+  { id: 'hand_on_hip', label: '한 손 허리', description: '한 손을 허리에 올린 화보 포즈', emoji: '💁' },
+  { id: 'arms_crossed', label: '팔짱', description: '팔짱을 끼고 선 자신감 있는 포즈', emoji: '🙅' },
+  { id: 'leaning_wall', label: '벽에 기대기', description: '벽에 어깨를 기댄 여유로운 포즈', emoji: '🧱' },
+  { id: 'sitting', label: '앉은 포즈', description: '의자에 앉아 다리를 꼰 포즈', emoji: '🪑' },
+  { id: 'crouching', label: '쪼그려 앉기', description: '스트리트 화보 느낌의 쪼그려 앉은 포즈', emoji: '🧎' },
+];
+
+export function getPoseLabel(pose: string | null | undefined): string {
+  if (!pose) return '착장';
+  if (pose === CUSTOM_POSE_ID) return '직접 입력';
+  return POSE_TEMPLATES.find((t) => t.id === pose)?.label ?? pose;
+}
 
 export interface GeneratedImage {
   id: string;

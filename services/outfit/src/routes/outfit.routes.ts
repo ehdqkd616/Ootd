@@ -19,6 +19,15 @@ const createOutfitSchema = z.object({
   })),
 });
 
+const generateSchema = z
+  .object({
+    poses: z.array(z.string().refine((p) => Object.hasOwn(outfitService.POSE_PROMPTS, p), '알 수 없는 포즈')).optional(),
+    customPose: z.string().trim().max(outfitService.MAX_CUSTOM_POSE_LENGTH).optional(),
+  })
+  .refine((b) => (b.poses?.length ?? 0) + (b.customPose ? 1 : 0) <= outfitService.MAX_POSES_PER_REQUEST, {
+    message: `한 번에 최대 ${outfitService.MAX_POSES_PER_REQUEST}개 포즈까지 생성할 수 있어요.`,
+  });
+
 outfitRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const page = Number(req.query.page ?? 1);
@@ -72,15 +81,23 @@ outfitRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 outfitRouter.post('/:id/generate', async (req: AuthRequest, res: Response) => {
+  const parsed = generateSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    const message = parsed.error.issues[0]?.message ?? '유효하지 않은 입력값';
+    return res.status(400).json({ message, errors: parsed.error.flatten() });
+  }
+
   try {
     const outfit = await outfitService.getOutfit(req.params.id, req.userId!);
-    const poses = (req.body.poses as string[] | undefined) ?? ['front', 'side', 'back'];
-    const job = await outfitService.enqueueImageGeneration(outfit.id, outfit.avatarId, req.userId!, poses);
+    const customPose = parsed.data.customPose || undefined;
+    const poses = parsed.data.poses ?? (customPose ? [] : ['front']);
+    const job = await outfitService.enqueueImageGeneration(outfit.id, outfit.avatarId, req.userId!, poses, customPose);
     res.status(202).json(job);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[generate] error:', msg);
     if (msg === 'NO_AVATAR') return res.status(400).json({ message: '아바타가 없습니다. 아바타 페이지에서 먼저 아바타를 추가해주세요.' });
+    if (msg === 'NO_POSE') return res.status(400).json({ message: '포즈를 하나 이상 고르거나 원하는 포즈를 적어주세요.' });
     if (msg === 'NO_TRYON_GARMENT') return res.status(400).json({ message: '코디에 사진이 있는 옷이 없어요. 옷을 하나 이상 넣어주세요.' });
     if (msg === 'TRYON_FAILED') return res.status(502).json({ message: '착장 이미지 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.' });
     res.status(500).json({ message: 'AI 이미지 생성 요청 실패', detail: msg });
