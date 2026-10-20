@@ -1,5 +1,6 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Header
+from fastapi import APIRouter, File, Header, HTTPException, UploadFile
 from pydantic import BaseModel
+
 from app.services.avatar_generation import generate_avatar
 
 router = APIRouter()
@@ -24,13 +25,15 @@ async def generate(
         raise HTTPException(status_code=400, detail="파일 크기는 20MB 이하여야 합니다.")
 
     # JWT에서 userId 추출 (간소화 버전 - 실제로는 미들웨어 처리)
-    import jwt as pyjwt, os
+    import os
+
+    import jwt as pyjwt
     token = authorization.removeprefix("Bearer ")
     try:
         payload = pyjwt.decode(token, os.getenv("JWT_ACCESS_SECRET", ""), algorithms=["HS256"])
         user_id = payload.get("userId", "unknown")
-    except Exception:
-        raise HTTPException(status_code=401, detail="인증 실패")
+    except pyjwt.PyJWTError as e:
+        raise HTTPException(status_code=401, detail="인증 실패") from e
 
     result = await generate_avatar(image_bytes, user_id)
     return AvatarGenerationResult(**result)

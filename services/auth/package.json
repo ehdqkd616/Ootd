@@ -6,7 +6,7 @@
     "dev": "nodemon --watch src --ext ts --exec \"node --env-file=../../.env -r ts-node/register src/index.ts\"",
     "build": "tsc",
     "start": "node dist/index.js",
-    "lint": "eslint src --ext ts",
+    "lint": "eslint src",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

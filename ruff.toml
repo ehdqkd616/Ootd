@@ -1,0 +1,3 @@
+[lint.flake8-bugbear]
+# FastAPI는 File(...)·Header(...)를 기본값 자리에 쓰는 게 정석이다
+extend-immutable-calls = ["fastapi.File", "fastapi.Header", "fastapi.Depends", "fastapi.Query", "fastapi.Form"]

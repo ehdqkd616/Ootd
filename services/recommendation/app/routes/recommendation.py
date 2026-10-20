@@ -1,7 +1,9 @@
 import os
+
 import httpx
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
+
 from app.services.claude_service import get_recommendation
 
 router = APIRouter()
@@ -64,8 +66,8 @@ async def create_recommendation(
     # 사용자 옷장 조회
     try:
         items = await fetch_wardrobe("", token)
-    except Exception:
-        raise HTTPException(status_code=502, detail="옷장 서비스 연결 실패")
+    except (httpx.HTTPError, ValueError) as e:
+        raise HTTPException(status_code=502, detail="옷장 서비스 연결 실패") from e
 
     if not items:
         raise HTTPException(status_code=400, detail="옷장에 아이템이 없습니다.")

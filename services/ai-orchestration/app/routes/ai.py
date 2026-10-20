@@ -1,5 +1,6 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
+
 from app.services.background_removal import remove_background
 from app.services.image_classification import classify_clothing
 
@@ -54,7 +55,7 @@ async def process_image(
             **classification,
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 async def update_item_in_db(item_id: str, processed_url: str, classification: dict):

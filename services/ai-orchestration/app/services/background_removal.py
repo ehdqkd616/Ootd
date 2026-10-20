@@ -1,10 +1,11 @@
 import io
-import httpx
-import boto3
+import os
 from uuid import uuid4
+
+import boto3
+import httpx
 from PIL import Image
 from rembg import remove
-import os
 
 s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION", "ap-northeast-2"))
 BUCKET_PROCESSED = os.getenv("AWS_S3_BUCKET_PROCESSED_IMAGES", "ootd-processed-images")

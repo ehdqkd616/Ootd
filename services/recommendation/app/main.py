@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.routes import recommendation
 
 app = FastAPI(title="OOTD Recommendation Service", version="1.0.0")

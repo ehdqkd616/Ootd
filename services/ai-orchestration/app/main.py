@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.routes import ai
 
 app = FastAPI(title="OOTD AI Orchestration Service", version="1.0.0")

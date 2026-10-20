@@ -1,7 +1,8 @@
 import io
 import os
-import boto3
 from uuid import uuid4
+
+import boto3
 from PIL import Image
 
 s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION", "ap-northeast-2"))

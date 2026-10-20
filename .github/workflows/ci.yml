@@ -14,9 +14,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # pnpm 버전은 package.json의 packageManager를 따른다 (여기서 또 지정하면 action이 실패한다)
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
@@ -44,9 +43,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # pnpm 버전은 package.json의 packageManager를 따른다 (여기서 또 지정하면 action이 실패한다)
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:

@@ -1,9 +1,10 @@
 import io
-import httpx
-import torch
-import open_clip
-from PIL import Image
 from functools import lru_cache
+
+import httpx
+import open_clip
+import torch
+from PIL import Image
 
 CATEGORY_LABELS = [
     "a top clothing, shirt, t-shirt, blouse, sweater",
