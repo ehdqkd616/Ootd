@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '@ootd/db';
 import { requireAuth, AuthRequest } from '../middleware/auth.middleware';
+import * as outfitService from '../services/outfit.service';
 import { getCurrentWeather, weatherToPrompt, type WeatherInfo } from '../services/weather.service';
 
 export const recommendationRouter = Router();
@@ -124,6 +125,7 @@ recommendationRouter.post('/', async (req: AuthRequest, res: Response) => {
         promptText: prompt.trim(),
         weatherData: weather ? (weather as unknown as object) : undefined,
         recommendedOutfitIds: [],
+        suggestedItemIds: suggestedItems.map((i) => i.id),
         aiExplanation: explanation,
       },
     });
@@ -143,10 +145,48 @@ recommendationRouter.post('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// 추천받은 옷들로 코디를 만든다 — 착장 페이지에서 바로 입어볼 수 있게. 이미 만들었으면 그 코디를 돌려준다.
+const LAYER_ORDER: Record<string, number> = { top: 1, dress: 1, bottom: 2, outer: 3, shoes: 4, accessory: 5, etc: 6 };
+
+recommendationRouter.post('/:id/outfit', async (req: AuthRequest, res: Response) => {
+  try {
+    const rec = await prisma.outfitRecommendation.findFirst({ where: { id: req.params.id, userId: req.userId! } });
+    if (!rec) return res.status(404).json({ message: '추천을 찾을 수 없습니다.' });
+
+    const existingId = rec.recommendedOutfitIds[0];
+    if (existingId) {
+      const existing = await prisma.outfit.findFirst({ where: { id: existingId, userId: req.userId! } });
+      if (existing) return res.json(existing);
+    }
+
+    const items = await prisma.clothingItem.findMany({
+      where: { id: { in: rec.suggestedItemIds }, userId: req.userId!, isArchived: false },
+    });
+    if (items.length === 0) {
+      return res.status(400).json({ message: '입어볼 옷이 없어요. 추천된 옷이 옷장에서 삭제됐거나, 옷장이 빈 상태로 받은 추천이에요.' });
+    }
+
+    const prompt = rec.promptText?.trim() || '코디';
+    const outfit = await outfitService.createOutfit(req.userId!, {
+      name: `AI 추천 · ${prompt.length > 40 ? `${prompt.slice(0, 40)}…` : prompt}`,
+      description: rec.aiExplanation ?? undefined,
+      tags: ['AI 추천'],
+      items: items.map((item) => ({ clothingItemId: item.id, layerOrder: LAYER_ORDER[item.category ?? 'etc'] ?? 6 })),
+    });
+    await prisma.outfitRecommendation.update({ where: { id: rec.id }, data: { recommendedOutfitIds: [outfit.id] } });
+    res.status(201).json(outfit);
+  } catch (err) {
+    console.error('Recommendation outfit error:', err instanceof Error ? err.message : err);
+    res.status(500).json({ message: '코디를 만들지 못했습니다.' });
+  }
+});
+
 recommendationRouter.post('/:id/feedback', async (req: AuthRequest, res: Response) => {
   try {
+    const owned = await prisma.outfitRecommendation.findFirst({ where: { id: req.params.id, userId: req.userId! } });
+    if (!owned) return res.status(404).json({ message: '추천을 찾을 수 없습니다.' });
     const rec = await prisma.outfitRecommendation.update({
-      where: { id: req.params.id },
+      where: { id: owned.id },
       data: { feedback: req.body.feedback },
     });
     res.json(rec);

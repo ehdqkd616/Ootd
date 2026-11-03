@@ -137,7 +137,8 @@ model OutfitRecommendation {
   userId               String   @map("user_id") @db.Uuid
   promptText           String?  @map("prompt_text")
   weatherData          Json?    @map("weather_data") @db.JsonB
-  recommendedOutfitIds String[] @map("recommended_outfit_ids") @db.Uuid
+  recommendedOutfitIds String[] @map("recommended_outfit_ids") @db.Uuid // "입어보기"로 만든 코디
+  suggestedItemIds     String[] @default([]) @map("suggested_item_ids") @db.Uuid // AI가 고른 옷장 아이템
   aiExplanation        String?  @map("ai_explanation")
   feedback             String?  @db.VarChar(20)
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz

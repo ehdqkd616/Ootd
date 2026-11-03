@@ -173,9 +173,12 @@ export class OotdApiClient {
 
     delete: (id: string) => this.http.delete(`/outfits/${id}`).then((r) => r.data),
 
-    generateImage: (id: string, poses?: string[], customPose?: string) =>
+    generateImage: (
+      id: string,
+      body: { poses?: string[]; customPose?: string; avatarId?: string; background?: string; customBackground?: string },
+    ) =>
       this.http
-        .post<AIJob>(`/outfits/${id}/generate`, { poses, customPose })
+        .post<AIJob>(`/outfits/${id}/generate`, body)
         .then((r) => r.data),
 
     getImages: (id: string) =>
@@ -202,6 +205,10 @@ export class OotdApiClient {
       this.http
         .get<PaginatedResponse<OutfitRecommendation>>('/recommendations', { params })
         .then((r) => r.data),
+
+    // 추천받은 옷들로 코디를 만든다 (이미 만들었으면 그 코디)
+    createOutfit: (id: string) =>
+      this.http.post<Outfit>(`/recommendations/${id}/outfit`).then((r) => r.data),
 
     feedback: (id: string, feedback: 'liked' | 'disliked' | 'neutral') =>
       this.http

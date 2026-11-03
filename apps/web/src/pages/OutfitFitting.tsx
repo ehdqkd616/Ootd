@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Wand2, AlertCircle, Trash2, X, ZoomIn, Check, PenLine } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -9,6 +9,11 @@ import {
   MAX_POSES_PER_REQUEST,
   MAX_CUSTOM_POSE_LENGTH,
   getPoseLabel,
+  BACKGROUND_TEMPLATES,
+  CUSTOM_BACKGROUND_ID,
+  DEFAULT_BACKGROUND_ID,
+  MAX_CUSTOM_BACKGROUND_LENGTH,
+  getBackgroundLabel,
 } from '@ootd/types';
 import type { GeneratedImage } from '@ootd/api-client';
 
@@ -20,8 +25,14 @@ const CUSTOM_POSE_EXAMPLES = [
 ];
 
 function imageCaption(image: GeneratedImage) {
-  const custom = image.generationParams?.customPose;
-  return image.pose === CUSTOM_POSE_ID && typeof custom === 'string' ? custom : getPoseLabel(image.pose);
+  const params = image.generationParams ?? {};
+  const pose =
+    image.pose === CUSTOM_POSE_ID && typeof params.customPose === 'string' ? params.customPose : getPoseLabel(image.pose);
+  const background =
+    params.background === CUSTOM_BACKGROUND_ID && typeof params.customBackground === 'string'
+      ? params.customBackground
+      : getBackgroundLabel(typeof params.background === 'string' ? params.background : null);
+  return background ? `${pose} · ${background}` : pose;
 }
 
 function ImageLightbox({ image, onClose }: { image: GeneratedImage; onClose: () => void }) {
@@ -52,6 +63,9 @@ export function OutfitFitting() {
   const [selectedPoses, setSelectedPoses] = useState<string[]>(['front']);
   const [customPose, setCustomPose] = useState('');
   const [activeImageId, setActiveImageId] = useState<string | null>(null);
+  const [pickedAvatarId, setPickedAvatarId] = useState<string | null>(null);
+  const [background, setBackground] = useState(DEFAULT_BACKGROUND_ID);
+  const [customBackground, setCustomBackground] = useState('');
 
   const { data: outfit } = useQuery({
     queryKey: ['outfit', id],
@@ -65,12 +79,31 @@ export function OutfitFitting() {
     enabled: !!id,
   });
 
+  const { data: avatars } = useQuery({
+    queryKey: ['avatars'],
+    queryFn: () => api.avatars.list(),
+  });
+
+  // 직접 고른 아바타 → 이 코디에 마지막으로 쓴 아바타 → 기본 아바타 → 첫 아바타
+  const avatarId =
+    [pickedAvatarId, outfit?.avatarId].find((aid) => aid && avatars?.some((a) => a.id === aid)) ??
+    avatars?.find((a) => a.isDefault)?.id ??
+    avatars?.[0]?.id;
+
   const trimmedCustomPose = customPose.trim();
   const requestCount = selectedPoses.length + (trimmedCustomPose ? 1 : 0);
 
   const generateMutation = useMutation({
-    mutationFn: () => api.outfits.generateImage(id!, selectedPoses, trimmedCustomPose || undefined),
+    mutationFn: () =>
+      api.outfits.generateImage(id!, {
+        poses: selectedPoses,
+        customPose: trimmedCustomPose || undefined,
+        avatarId,
+        background,
+        customBackground: customBackground.trim() || undefined,
+      }),
     onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ['outfit', id] });
       // 새로 만든 이미지가 메인에 보이도록 선택을 비운다 (비어 있으면 최신 이미지를 보여준다)
       setActiveImageId(null);
       await refetchImages();
@@ -114,7 +147,8 @@ export function OutfitFitting() {
     });
   };
 
-  const canGenerate = requestCount > 0 && requestCount <= MAX_POSES_PER_REQUEST && !generateMutation.isPending;
+  const canGenerate =
+    !!avatarId && requestCount > 0 && requestCount <= MAX_POSES_PER_REQUEST && !generateMutation.isPending;
 
   return (
     <>
@@ -127,6 +161,52 @@ export function OutfitFitting() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">{outfit?.name ?? '코디 상세'}</h1>
         </div>
+
+        {/* 아바타 선택 */}
+        <section className="space-y-3 rounded-2xl border border-border p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-semibold">아바타 고르기</h2>
+            <Link to="/avatars" className="text-xs text-muted-foreground underline hover:text-foreground">
+              아바타 관리
+            </Link>
+          </div>
+          {avatars && avatars.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              아바타가 없어요. <Link to="/avatars" className="underline">아바타 페이지</Link>에서 먼저 사진을 등록해 주세요.
+            </p>
+          ) : (
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {avatars?.map((a) => {
+                const selected = a.id === avatarId;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => setPickedAvatarId(a.id)}
+                    disabled={generateMutation.isPending}
+                    aria-pressed={selected}
+                    className={`relative w-20 shrink-0 space-y-1 rounded-xl border p-1.5 text-center transition-colors disabled:opacity-50 ${
+                      selected ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/60'
+                    }`}
+                  >
+                    <img
+                      src={a.fullBodyUrl ?? a.sourceImageUrl}
+                      alt={a.name ?? '아바타'}
+                      className="aspect-[3/4] w-full rounded-lg object-cover"
+                    />
+                    <span className="block truncate text-xs font-medium">{a.name ?? '이름 없음'}</span>
+                    {a.isDefault && <span className="block text-[10px] text-muted-foreground">기본</span>}
+                    {selected && (
+                      <span className="absolute top-1 right-1 rounded-full bg-primary p-0.5 text-primary-foreground">
+                        <Check className="h-3 w-3" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
         {/* 포즈 선택 */}
         <section className="space-y-4 rounded-2xl border border-border p-4">
@@ -197,8 +277,52 @@ export function OutfitFitting() {
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              자세·표정·카메라 각도·배경을 적어주세요. 옷은 코디에 담긴 옷 그대로 입혀요.
+              자세·표정·카메라 각도를 적어주세요. 옷은 코디에 담긴 옷 그대로 입혀요.
             </p>
+          </div>
+
+          {/* 배경 선택 — 한 번에 하나, 고른 포즈 모두에 적용 */}
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="font-semibold">배경 고르기</h3>
+              <p className="text-xs text-muted-foreground">고른 포즈 모두 이 배경에서 찍어요</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+              {BACKGROUND_TEMPLATES.map((b) => {
+                const selected = !customBackground.trim() && background === b.id;
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => {
+                      setBackground(b.id);
+                      setCustomBackground('');
+                    }}
+                    disabled={generateMutation.isPending}
+                    aria-pressed={selected}
+                    title={b.description}
+                    className={`relative flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors disabled:opacity-50 ${
+                      selected ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/60'
+                    }`}
+                  >
+                    <span className="text-lg leading-none" aria-hidden>{b.emoji}</span>
+                    <span className="truncate text-sm font-medium">{b.label}</span>
+                    {selected && (
+                      <span className="absolute top-1 right-1 rounded-full bg-primary p-0.5 text-primary-foreground">
+                        <Check className="h-3 w-3" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              value={customBackground}
+              onChange={(e) => setCustomBackground(e.target.value.slice(0, MAX_CUSTOM_BACKGROUND_LENGTH))}
+              disabled={generateMutation.isPending}
+              placeholder="원하는 배경 직접 적기 (선택) — 예) 비 갠 뒤 젖은 골목길, 저녁 네온사인"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
+            />
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-3">
@@ -224,7 +348,7 @@ export function OutfitFitting() {
 
         {generateMutation.isPending && (
           <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-            아바타 사진과 옷 사진으로 착장 샷을 만드는 중입니다. 포즈 한 장에 1분 정도 걸려요
+            착장 샷을 만들고 얼굴을 다듬는 중입니다. 한 장에 1분 남짓 걸려요
             {requestCount > 1 ? ` (총 ${requestCount}장)` : ''}...
           </div>
         )}

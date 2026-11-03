@@ -172,7 +172,48 @@ export const POSE_TEMPLATES: PoseTemplate[] = [
   { id: 'leaning_wall', label: '벽에 기대기', description: '벽에 어깨를 기댄 여유로운 포즈', emoji: '🧱' },
   { id: 'sitting', label: '앉은 포즈', description: '의자에 앉아 다리를 꼰 포즈', emoji: '🪑' },
   { id: 'crouching', label: '쪼그려 앉기', description: '스트리트 화보 느낌의 쪼그려 앉은 포즈', emoji: '🧎' },
+  { id: 'stairs_sitting', label: '계단에 걸터앉기', description: '계단이나 턱에 편하게 걸터앉은 포즈', emoji: '🪜' },
+  { id: 'coffee', label: '커피 들고', description: '테이크아웃 커피를 들고 여유롭게 선 포즈', emoji: '☕' },
+  { id: 'phone_walk', label: '휴대폰 보며 걷기', description: '휴대폰을 보며 걷는 일상 스냅', emoji: '📱' },
+  { id: 'looking_away', label: '먼 곳 보기', description: '카메라 대신 먼 곳을 바라보는 화보 컷', emoji: '🌅' },
+  { id: 'adjusting', label: '옷매무새 정리', description: '소매나 깃을 매만지는 자연스러운 순간', emoji: '🤏' },
+  { id: 'laughing', label: '웃는 캔디드', description: '웃음이 터진 순간을 잡은 캔디드 컷', emoji: '😄' },
 ];
+
+// 착장 샷 배경 — 한 번 생성할 때 배경 하나를 고르고 포즈 여러 개에 같이 적용한다
+export const CUSTOM_BACKGROUND_ID = 'custom';
+export const DEFAULT_BACKGROUND_ID = 'studio';
+export const MAX_CUSTOM_BACKGROUND_LENGTH = 300;
+
+export interface BackgroundTemplate {
+  id: string;
+  label: string;
+  description: string;
+  emoji: string;
+}
+
+export const BACKGROUND_TEMPLATES: BackgroundTemplate[] = [
+  { id: 'studio', label: '스튜디오', description: '밝은 회색 무지 배경, 옷이 가장 잘 보여요', emoji: '⬜' },
+  { id: 'warm_studio', label: '웜톤 스튜디오', description: '베이지 배경지와 창가 자연광', emoji: '🟫' },
+  { id: 'city_street', label: '도심 거리', description: '빌딩과 횡단보도가 있는 도시 거리', emoji: '🏙️' },
+  { id: 'alley', label: '골목길', description: '낮은 주택과 담장이 있는 감성 골목', emoji: '🏘️' },
+  { id: 'cafe', label: '카페', description: '따뜻한 조명의 우드톤 카페', emoji: '☕' },
+  { id: 'park', label: '공원 산책로', description: '나무 그늘이 진 공원 길', emoji: '🌳' },
+  { id: 'riverside', label: '한강', description: '강변 산책로와 다리가 보이는 풍경', emoji: '🌉' },
+  { id: 'beach', label: '바닷가', description: '모래사장과 수평선', emoji: '🏖️' },
+  { id: 'gallery', label: '갤러리', description: '흰 벽과 작품이 걸린 미술관', emoji: '🖼️' },
+  { id: 'subway', label: '지하철역', description: '타일 벽과 승강장 조명', emoji: '🚇' },
+  { id: 'rooftop_sunset', label: '옥상 노을', description: '노을 지는 도시 옥상', emoji: '🌇' },
+  { id: 'bookstore', label: '서점', description: '책장이 가득한 아늑한 서점', emoji: '📚' },
+  { id: 'autumn_leaves', label: '단풍길', description: '낙엽이 깔린 가을 가로수길', emoji: '🍂' },
+  { id: 'snowy_street', label: '눈 오는 거리', description: '눈이 소복이 쌓인 겨울 거리', emoji: '❄️' },
+];
+
+export function getBackgroundLabel(background: string | null | undefined): string | null {
+  if (!background) return null;
+  if (background === CUSTOM_BACKGROUND_ID) return '직접 입력';
+  return BACKGROUND_TEMPLATES.find((t) => t.id === background)?.label ?? background;
+}
 
 export function getPoseLabel(pose: string | null | undefined): string {
   if (!pose) return '착장';
@@ -215,6 +256,7 @@ export interface OutfitRecommendation {
   promptText: string | null;
   weatherData: WeatherData | null;
   recommendedOutfitIds: string[];
+  suggestedItemIds: string[];
   aiExplanation: string | null;
   feedback: 'liked' | 'disliked' | 'neutral' | null;
   createdAt: string;
